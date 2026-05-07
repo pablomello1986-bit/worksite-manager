@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm start *)",
+      "Bash(npm install *)",
+      "Bash(curl *)",
+      "Bash(pkill -f \"node src/server.js\")",
+      "Bash(node src/server.js)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //PID 12664 //F)",
+      "Bash(awk '{print $5}')",
+      "Bash(xargs -r taskkill //PID //F)",
+      "Bash(taskkill //PID 24728 //F)",
+      "Bash(sort -k6 -r)",
+      "Bash(xargs ls *)",
+      "Bash(start *)",
+      "Bash(taskkill //PID 26136 //F)",
+      "Bash(taskkill *)",
+      "Bash(Start-Process powershell *)",
+      "Bash(node -e \"require\\('nodemailer'\\); require\\('pdfkit'\\); require\\('uuid'\\); console.log\\('OK'\\)\")",
+      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"cd 'C:\\\\Users\\\\pablo\\\\OneDrive\\\\Desktop\\\\Programas\\\\WorkSite Manager'; node src/server.js\")"
+    ]
+  }
+}
