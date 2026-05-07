@@ -619,7 +619,7 @@ function renderProjectsList() {
         </div>
       </article>
     `,
-    getSearchEmptyMarkup("Nenhuma obra encontrada com esse filtro."),
+    getSearchEmptyMarkup("No projects found with this filter."),
   );
 
   document.querySelectorAll("[data-open-project]").forEach((button) => {
@@ -657,7 +657,7 @@ function renderProjectsList() {
   document.querySelectorAll("[data-delete-project]").forEach((button) => {
     button.addEventListener("click", async () => {
       const project = state.projects.find((item) => item.id === Number(button.dataset.deleteProject));
-      if (!project || !await showConfirm("Excluir obra", `Excluir "${project.clientName}"? Isso remove pagamentos, materiais e recebimentos relacionados.`)) {
+      if (!project || !await showConfirm("Delete project", `Delete "${project.clientName}"? This removes related payments, materials and receipts.`)) {
         return;
       }
 
@@ -666,7 +666,7 @@ function renderProjectsList() {
         state.selectedProjectId = null;
       }
       resetProjectForm();
-      showToast("Obra excluida", "success");
+      showToast("Project deleted", "success");
       await refreshAll();
     });
   });
@@ -689,43 +689,43 @@ function renderProjectDetail() {
     <div class="detail-block">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:14px;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <button class="button-secondary narrow-button" id="btn-back-to-list">&#8592; Voltar</button>
+          <button class="button-secondary narrow-button" id="btn-back-to-list">&#8592; Back</button>
           <div>
-            <p class="section-tag" style="margin:0 0 4px;">Ficha da obra</p>
+            <p class="section-tag" style="margin:0 0 4px;">Project details</p>
             <strong style="font-size:1.05rem;">${project.clientName}</strong>
             ${makeStatusPill(project.status)}
           </div>
         </div>
         <div class="inline-actions" style="margin-top:0;flex-shrink:0;">
-          <button class="button-secondary narrow-button" data-edit-project="${project.id}">Editar</button>
-          <button class="button-danger narrow-button" data-delete-project="${project.id}">Excluir</button>
+          <button class="button-secondary narrow-button" data-edit-project="${project.id}">Edit</button>
+          <button class="button-danger narrow-button" data-delete-project="${project.id}">Delete</button>
         </div>
       </div>
       <p style="color:var(--muted);margin:0 0 12px;font-size:0.85rem;line-height:1.5;">${project.description}</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         ${[
-          ["Endereco", project.address || "Nao informado"],
-          ["Telefone", project.clientPhone || "Nao informado"],
-          ["Responsavel", project.managerName || "Nao informado"],
-          ["Pagamento", project.paymentMethod || "Nao informado"],
-          ["Parcelas", project.installmentInfo || "Nao informado"],
-          ["Vencimento", formatDate(project.dueDate)],
+          ["Address", project.address || "Not provided"],
+          ["Phone", project.clientPhone || "Not provided"],
+          ["Manager", project.managerName || "Not provided"],
+          ["Payment", project.paymentMethod || "Not provided"],
+          ["Installments", project.installmentInfo || "Not provided"],
+          ["Due date", formatDate(project.dueDate)],
         ].map(([k,v]) => `<div style="font-size:0.8rem;"><span style="display:block;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:0.68rem;letter-spacing:.08em;margin-bottom:2px;">${k}</span>${v}</div>`).join("")}
       </div>
       ${project.notes ? `<p style="margin:12px 0 0;font-size:0.82rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;">${project.notes}</p>` : ""}
     </div>
     <div class="detail-block">
-      <p class="section-tag" style="margin:0 0 10px;">Financeiro</p>
+      <p class="section-tag" style="margin:0 0 10px;">Financials</p>
       <div style="display:grid;gap:8px;">
         ${[
-          ["Valor contratado", formatCurrency(project.totalValue), ""],
-          ["Orcamento previsto", formatCurrency(project.budgetValue), ""],
-          ["Valor recebido", formatCurrency(project.receivedAmount), ""],
-          ["Saldo recebido", formatCurrency(project.receivedBalance), project.receivedBalance >= 0 ? "money-positive" : "money-negative"],
-          ["A receber", formatCurrency(project.remainingToReceive), ""],
-          ["Custo total", formatCurrency(project.totalCosts), ""],
-          ["Saldo orcamento", formatCurrency(project.budgetBalance), ""],
-          ["Lucro atual", formatCurrency(project.profit), project.profit >= 0 ? "money-positive" : "money-negative"],
+          ["Contracted amount", formatCurrency(project.totalValue), ""],
+          ["Estimated budget", formatCurrency(project.budgetValue), ""],
+          ["Amount received", formatCurrency(project.receivedAmount), ""],
+          ["Received balance", formatCurrency(project.receivedBalance), project.receivedBalance >= 0 ? "money-positive" : "money-negative"],
+          ["Outstanding", formatCurrency(project.remainingToReceive), ""],
+          ["Total cost", formatCurrency(project.totalCosts), ""],
+          ["Budget balance", formatCurrency(project.budgetBalance), ""],
+          ["Current profit", formatCurrency(project.profit), project.profit >= 0 ? "money-positive" : "money-negative"],
         ].map(([k,v,cls]) => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:0.85rem;">
             <span style="color:var(--muted);">${k}</span>
@@ -734,43 +734,43 @@ function renderProjectDetail() {
       </div>
     </div>
     <div class="detail-block">
-      <p class="section-tag" style="margin:0 0 8px;">Equipe alocada (${assignments.length})</p>
+      <p class="section-tag" style="margin:0 0 8px;">Allocated team (${assignments.length})</p>
       ${assignments.length
         ? assignments.map((a) => `
             <div style="display:flex;justify-content:space-between;font-size:0.83rem;padding:5px 0;border-bottom:1px solid var(--line);">
               <span>${a.employeeName}${a.role ? ` <span style="color:var(--muted);">— ${a.role}</span>` : ""}</span>
-              <strong>${formatCurrency(a.dailyRate)}/dia</strong>
+              <strong>${formatCurrency(a.dailyRate)}/day</strong>
             </div>`).join("")
-        : `<p style="color:var(--muted);font-size:0.83rem;margin:0;">Nenhum funcionario alocado.</p>`}
+        : `<p style="color:var(--muted);font-size:0.83rem;margin:0;">No employees allocated.</p>`}
     </div>
     <div class="detail-block">
-      <p class="section-tag" style="margin:0 0 8px;">Ultimos pagamentos</p>
+      <p class="section-tag" style="margin:0 0 8px;">Latest payments</p>
       ${laborRecords.length
         ? laborRecords.slice(0, 5).map((r) => `
             <div style="display:flex;justify-content:space-between;font-size:0.83rem;padding:5px 0;border-bottom:1px solid var(--line);">
               <span>${r.employeeName} <span style="color:var(--muted);">${formatDate(r.workEndDate || r.workStartDate)}</span></span>
               <strong>${formatCurrency(r.amountPaid)}</strong>
             </div>`).join("")
-        : `<p style="color:var(--muted);font-size:0.83rem;margin:0;">Nenhum pagamento registrado.</p>`}
+        : `<p style="color:var(--muted);font-size:0.83rem;margin:0;">No payments recorded.</p>`}
     </div>
     <div class="detail-block">
-      <p class="section-tag" style="margin:0 0 8px;">Materiais recentes</p>
+      <p class="section-tag" style="margin:0 0 8px;">Recent materials</p>
       ${materials.length
         ? materials.slice(0, 5).map((m) => `
             <div style="display:flex;justify-content:space-between;font-size:0.83rem;padding:5px 0;border-bottom:1px solid var(--line);">
               <span>${m.name} <span style="color:var(--muted);">${m.paymentStatus}</span></span>
               <strong>${formatCurrency(m.cost)}</strong>
             </div>`).join("")
-        : `<p style="color:var(--muted);font-size:0.83rem;margin:0;">Nenhum material registrado.</p>`}
+        : `<p style="color:var(--muted);font-size:0.83rem;margin:0;">No materials recorded.</p>`}
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">
       <div style="background:#e8f4fd;border:1px solid #90c8f0;border-radius:10px;padding:14px 16px;">
-        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#2a6496;">A Receber</p>
+        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#2a6496;">Outstanding</p>
         <strong style="font-size:1.15rem;color:#1a4f72;">${formatCurrency(project.remainingToReceive)}</strong>
       </div>
       <div style="background:#fef6e4;border:1px solid #f5c842;border-radius:10px;padding:14px 16px;">
-        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a6000;">Mao de Obra</p>
+        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a6000;">Labor</p>
         <strong style="font-size:1.15rem;color:#6b4c00;">${formatCurrency(project.laborCost)}</strong>
       </div>
       <div style="background:#f3eeff;border:1px solid #c3a8f5;border-radius:10px;padding:14px 16px;">
@@ -778,7 +778,7 @@ function renderProjectDetail() {
         <strong style="font-size:1.15rem;color:#3d2070;">${formatCurrency(project.materialCost)}</strong>
       </div>
       <div style="background:${project.profit >= 0 ? "#eaf7ee" : "#fdecea"};border:1px solid ${project.profit >= 0 ? "#7ecf96" : "#f5a8a3"};border-radius:10px;padding:14px 16px;">
-        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${project.profit >= 0 ? "#1e6e3a" : "#a0291f"};">Lucro Atual</p>
+        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${project.profit >= 0 ? "#1e6e3a" : "#a0291f"};">Current Profit</p>
         <strong style="font-size:1.15rem;color:${project.profit >= 0 ? "#155229" : "#7a1f18"};">${formatCurrency(project.profit)}</strong>
       </div>
     </div>
@@ -803,14 +803,14 @@ function renderProjectDetail() {
 
   elements.projectDetail.querySelectorAll("[data-delete-project]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!await showConfirm("Excluir obra", `Excluir "${project.clientName}"? Isso remove pagamentos, materiais e recebimentos relacionados.`)) {
+      if (!await showConfirm("Delete project", `Delete "${project.clientName}"? This removes related payments, materials and receipts.`)) {
         return;
       }
 
       await api(`/api/projects/${button.dataset.deleteProject}`, { method: "DELETE" });
       state.selectedProjectId = null;
       resetProjectForm();
-      showToast("Obra excluida", "success");
+      showToast("Project deleted", "success");
       await refreshAll();
     });
   });
@@ -848,7 +848,7 @@ function renderEmployees() {
         </div>
       </article>
     `,
-    getSearchEmptyMarkup("Nenhum funcionario encontrado com esse filtro."),
+    getSearchEmptyMarkup("No employees found with this filter."),
   );
 
   document.querySelectorAll("[data-edit-employee]").forEach((button) => {
@@ -876,7 +876,7 @@ function renderEmployees() {
   document.querySelectorAll("[data-delete-employee]").forEach((button) => {
     button.addEventListener("click", async () => {
       const employee = state.employees.find((item) => item.id === Number(button.dataset.deleteEmployee));
-      if (!employee || !await showConfirm("Excluir funcionario", `Excluir "${employee.name}"?`)) {
+      if (!employee || !await showConfirm("Delete employee", `Delete "${employee.name}"?`)) {
         return;
       }
 
@@ -902,7 +902,7 @@ function loadEmployeeIntoForm(employee) {
   elements.employeeForm.elements.isActive.value = employee.isActive ? "true" : "false";
   elements.employeeSubmitButton.textContent = "Save changes";
   elements.employeeEditStatus.textContent = `Editing: ${employee.name}`;
-  openSlideOver(document.querySelector("#fpanel-employee"), "Editar Funcionario", "Equipe");
+  openSlideOver(document.querySelector("#fpanel-employee"), "Edit Employee", "Team");
 }
 
 function resetEmployeeForm() {
@@ -912,6 +912,7 @@ function resetEmployeeForm() {
   elements.employeeForm.elements.isActive.value = "true";
   elements.employeeSubmitButton.textContent = "Save employee";
   elements.employeeEditStatus.textContent = "New record mode";
+
   closeSlideOver();
 }
 
@@ -936,7 +937,7 @@ function loadProjectIntoForm(project) {
   elements.projectForm.elements.notes.value = project.notes || "";
   elements.projectSubmitButton.textContent = "Save changes";
   elements.projectEditStatus.textContent = `Editing: ${project.clientName}`;
-  openSlideOver(document.querySelector("#fpanel-project"), "Editar Obra", "Cadastro");
+  openSlideOver(document.querySelector("#fpanel-project"), "Edit Project", "Registration");
 }
 
 function resetProjectForm() {
@@ -959,17 +960,17 @@ function loadClientIntoForm(client) {
   elements.clientForm.elements.address.value = client.address || "";
   elements.clientForm.elements.logoUrl.value = client.logoUrl || "";
   elements.clientForm.elements.notes.value = client.notes || "";
-  elements.clientSubmitButton.textContent = "Salvar alteracoes";
-  elements.clientEditStatus.textContent = `Editando: ${client.name}`;
-  openSlideOver(document.querySelector("#fpanel-client"), "Editar Cliente", "Clientes");
+  elements.clientSubmitButton.textContent = "Save changes";
+  elements.clientEditStatus.textContent = `Editing: ${client.name}`;
+  openSlideOver(document.querySelector("#fpanel-client"), "Edit Client", "Clients");
 }
 
 function resetClientForm() {
   state.editingClientId = null;
   elements.clientForm.reset();
   elements.clientForm.elements.clientRecordId.value = "";
-  elements.clientSubmitButton.textContent = "Salvar cliente";
-  elements.clientEditStatus.textContent = "Novo cliente";
+  elements.clientSubmitButton.textContent = "Save client";
+  elements.clientEditStatus.textContent = "New client";
   closeSlideOver();
 }
 
@@ -996,22 +997,22 @@ function renderEstimateItemsEditor() {
     .map(
       (item, index) => `
         <div class="estimate-item-row">
-          <label class="full-width">Descricao<input data-estimate-item-field="description" data-estimate-item-index="${index}" value="${item.description || ""}" placeholder="ex: Porcelanato 60x60" /></label>
-          <label>Qtd<input data-estimate-item-field="quantity" data-estimate-item-index="${index}" type="number" min="0" step="0.01" value="${item.quantity ?? 0}" /></label>
-          <label>Preco unitario<input data-estimate-item-field="unitPrice" data-estimate-item-index="${index}" type="number" min="0" step="0.01" value="${item.unitPrice ?? 0}" /></label>
+          <label class="full-width">Description<input data-estimate-item-field="description" data-estimate-item-index="${index}" value="${item.description || ""}" placeholder="e.g.: Porcelain tile 60x60" /></label>
+          <label>Qty<input data-estimate-item-field="quantity" data-estimate-item-index="${index}" type="number" min="0" step="0.01" value="${item.quantity ?? 0}" /></label>
+          <label>Unit price<input data-estimate-item-field="unitPrice" data-estimate-item-index="${index}" type="number" min="0" step="0.01" value="${item.unitPrice ?? 0}" /></label>
           <div class="estimate-line-total">${formatCurrency(Number(item.quantity || 0) * Number(item.unitPrice || 0))}</div>
-          <button type="button" class="button-danger narrow-button" data-remove-estimate-item="${index}">Remover</button>
+          <button type="button" class="button-danger narrow-button" data-remove-estimate-item="${index}">Remove</button>
           <div class="estimate-item-material-row full-width">
             <label class="material-checkbox-label">
               <input type="checkbox" data-estimate-item-checkbox="${index}" ${(item.materialResponsibility || "empresa") === "empresa" ? "checked" : ""} />
-              <span class="material-checkbox-text">Material de responsabilidade da empresa</span>
+              <span class="material-checkbox-text">Material supplied by company</span>
             </label>
             <label class="material-desc-label" data-material-desc-wrapper="${index}" style="${(item.materialResponsibility || "empresa") === "cliente" ? "display:none" : ""}">
-              Descricao do material
-              <input data-estimate-item-field="materialDescription" data-estimate-item-index="${index}" value="${escapeHtml(item.materialDescription || "")}" placeholder="ex: Porcelanato Eliane 60x60, argamassa AC-II..." />
+              Material description
+              <input data-estimate-item-field="materialDescription" data-estimate-item-index="${index}" value="${escapeHtml(item.materialDescription || "")}" placeholder="e.g.: Eliane porcelain 60x60, AC-II mortar..." />
             </label>
           </div>
-          <label class="full-width estimate-process-label">Informacoes do processo / Como sera executado<textarea data-estimate-item-field="process" data-estimate-item-index="${index}" rows="2" placeholder="Descreva como este item sera executado, materiais, metodologia...">${escapeHtml(item.process || "")}</textarea></label>
+          <label class="full-width estimate-process-label">Process details / How it will be executed<textarea data-estimate-item-field="process" data-estimate-item-index="${index}" rows="2" placeholder="Describe how this item will be executed, materials, methodology...">${escapeHtml(item.process || "")}</textarea></label>
         </div>
       `,
     )
@@ -1061,12 +1062,12 @@ function renderEstimatePreview() {
   ensureEstimateItemsDraft();
   const totals = getEstimateDraftTotals();
   const client = state.clients.find((item) => item.id === Number(elements.estimateForm.elements.clientId.value || 0));
-  const businessName = elements.estimateForm.elements.businessName.value || "Seu negocio";
+  const businessName = elements.estimateForm.elements.businessName.value || "Your business";
   const businessLogoUrl = elements.estimateForm.elements.businessLogoUrl.value;
   const issueDate = elements.estimateForm.elements.issueDate.value;
   const validUntil = elements.estimateForm.elements.validUntil.value;
-  const workTitle = elements.estimateForm.elements.workTitle.value || "Novo trabalho";
-  const estimateNumber = elements.estimateForm.elements.estimateNumber.value || "Gerado automaticamente";
+  const workTitle = elements.estimateForm.elements.workTitle.value || "New job";
+  const estimateNumber = elements.estimateForm.elements.estimateNumber.value || "Auto-generated";
 
   elements.estimateSubtotal.textContent = formatCurrency(totals.subtotal);
   elements.estimateTaxAmount.textContent = formatCurrency(totals.taxAmount);
@@ -1081,12 +1082,12 @@ function renderEstimatePreview() {
       </div>
       <div class="estimate-preview-meta">
         ${businessLogoUrl ? `<img src="${businessLogoUrl}" alt="Logo" class="estimate-logo-preview" />` : ""}
-        <p>Data: ${formatDate(issueDate)}</p>
-        <p>Validade: ${formatDate(validUntil)}</p>
+        <p>Date: ${formatDate(issueDate)}</p>
+        <p>Valid until: ${formatDate(validUntil)}</p>
       </div>
     </div>
     <div class="estimate-preview-body">
-      <p><strong>Trabalho:</strong> ${workTitle}</p>
+      <p><strong>Job:</strong> ${workTitle}</p>
         <p><strong>Client:</strong> ${client?.name || "Select a client"}</p>
         <p><strong>Address:</strong> ${client?.address || "Not provided"}</p>
       <div class="estimate-preview-items">
@@ -1102,12 +1103,12 @@ function renderEstimatePreview() {
                 </div>
               `,
             )
-            .join("") || '<div class="empty-state">Adicione itens para montar o estimate.</div>'
+            .join("") || '<div class="empty-state">Add items to build the estimate.</div>'
         }
       </div>
       <div class="estimate-preview-totals">
         <p>Subtotal <strong>${formatCurrency(totals.subtotal)}</strong></p>
-        <p>Desconto <strong>${formatCurrency(totals.discountAmount)}</strong></p>
+        <p>Discount <strong>${formatCurrency(totals.discountAmount)}</strong></p>
         <p>Tax (${formatPercent(totals.taxPercent)}) <strong>${formatCurrency(totals.taxAmount)}</strong></p>
         <p>Total <strong>${formatCurrency(totals.totalAmount)}</strong></p>
       </div>
@@ -1120,8 +1121,8 @@ function getCurrentEstimateDraftSnapshot() {
   const totals = getEstimateDraftTotals();
   return {
     estimateNumber: elements.estimateForm.elements.estimateNumber.value || "Estimate",
-    workTitle: elements.estimateForm.elements.workTitle.value || "Novo trabalho",
-    businessName: elements.estimateForm.elements.businessName.value || "Seu negocio",
+    workTitle: elements.estimateForm.elements.workTitle.value || "New job",
+    businessName: elements.estimateForm.elements.businessName.value || "Your business",
     businessLogoUrl: elements.estimateForm.elements.businessLogoUrl.value || "",
     issueDate: elements.estimateForm.elements.issueDate.value || "",
     validUntil: elements.estimateForm.elements.validUntil.value || "",
@@ -1139,7 +1140,7 @@ function openEstimatePdf() {
   const popup = window.open("", "_blank", "width=960,height=1080");
 
   if (!popup) {
-    showToast("Nao foi possivel abrir a janela do PDF.", "error");
+    showToast("Could not open the PDF window.", "error");
     return;
   }
 
@@ -1161,11 +1162,11 @@ function openEstimatePdf() {
         </div>
       `;
     })
-    .join("") || `<div class="no-items">Nenhum item adicionado.</div>`;
+    .join("") || `<div class="no-items">No items added.</div>`;
 
   popup.document.write(`
     <!DOCTYPE html>
-    <html lang="pt-BR">
+    <html lang="en">
       <head>
         <meta charset="UTF-8" />
         <title>${escapeHtml(snapshot.estimateNumber)}</title>
@@ -1401,7 +1402,7 @@ function openEstimatePdf() {
 
           <div class="page-header">
             <div class="header-left">
-              <div class="header-tag">Orcamento</div>
+              <div class="header-tag">Estimate</div>
               <div class="header-estimate-num">${escapeHtml(snapshot.estimateNumber)}</div>
               <div class="header-business">${escapeHtml(cs.company_name || snapshot.businessName)}</div>
               ${cs.responsible_name ? `<div class="header-sub">Resp: ${escapeHtml(cs.responsible_name)}</div>` : ""}
@@ -1412,8 +1413,8 @@ function openEstimatePdf() {
             <div class="header-right">
               ${(cs.logo_url || snapshot.businessLogoUrl) ? `<img class="header-logo" src="${escapeHtml(cs.logo_url || snapshot.businessLogoUrl)}" alt="Logo" />` : ""}
               <div class="header-dates">
-                <div><strong>Emitido em</strong> ${escapeHtml(formatDate(snapshot.issueDate))}</div>
-                <div><strong>Valido ate</strong> ${escapeHtml(formatDate(snapshot.validUntil))}</div>
+                <div><strong>Issued on</strong> ${escapeHtml(formatDate(snapshot.issueDate))}</div>
+                <div><strong>Valid until</strong> ${escapeHtml(formatDate(snapshot.validUntil))}</div>
               </div>
             </div>
           </div>
@@ -1422,29 +1423,29 @@ function openEstimatePdf() {
 
             <div class="client-card">
               <div class="client-section">
-                <div class="client-label">Cliente</div>
-                <div class="client-name">${escapeHtml(snapshot.client?.name || "Nao informado")}</div>
+                <div class="client-label">Client</div>
+                <div class="client-name">${escapeHtml(snapshot.client?.name || "Not provided")}</div>
                 ${snapshot.client?.companyName ? `<div class="client-detail">${escapeHtml(snapshot.client.companyName)}</div>` : ""}
                 ${snapshot.client?.phone ? `<div class="client-detail">${escapeHtml(snapshot.client.phone)}</div>` : ""}
               </div>
               ${snapshot.client?.address ? `
               <div class="client-section">
-                <div class="client-label">Endereco</div>
+                <div class="client-label">Address</div>
                 <div class="client-detail">${escapeHtml(snapshot.client.address)}</div>
               </div>` : ""}
             </div>
 
             <div class="items-section">
-              <div class="section-title">Itens do orcamento</div>
+              <div class="section-title">Estimate items</div>
               ${itemsHtml}
             </div>
 
             <div style="display:flex; justify-content:flex-end;">
               <div class="totals-section">
-                <div class="section-title" style="margin-bottom:10px;">Resumo financeiro</div>
+                <div class="section-title" style="margin-bottom:10px;">Financial summary</div>
                 <div class="total-row"><span>Subtotal</span><strong>${escapeHtml(formatCurrency(snapshot.totals.subtotal))}</strong></div>
-                ${snapshot.totals.discountAmount > 0 ? `<div class="total-row"><span>Desconto</span><strong>- ${escapeHtml(formatCurrency(snapshot.totals.discountAmount))}</strong></div>` : ""}
-                ${snapshot.totals.taxAmount > 0 ? `<div class="total-row"><span>Impostos (${escapeHtml(formatPercent(snapshot.totals.taxPercent))})</span><strong>${escapeHtml(formatCurrency(snapshot.totals.taxAmount))}</strong></div>` : ""}
+                ${snapshot.totals.discountAmount > 0 ? `<div class="total-row"><span>Discount</span><strong>- ${escapeHtml(formatCurrency(snapshot.totals.discountAmount))}</strong></div>` : ""}
+                ${snapshot.totals.taxAmount > 0 ? `<div class="total-row"><span>Taxes (${escapeHtml(formatPercent(snapshot.totals.taxPercent))})</span><strong>${escapeHtml(formatCurrency(snapshot.totals.taxAmount))}</strong></div>` : ""}
                 <div class="total-row grand"><span>Total</span><strong>${escapeHtml(formatCurrency(snapshot.totals.totalAmount))}</strong></div>
               </div>
             </div>
@@ -1455,12 +1456,12 @@ function openEstimatePdf() {
           <div class="page-footer">
             ${snapshot.description ? `
             <div class="footer-block">
-              <div class="footer-label">Descricao do servico</div>
+              <div class="footer-label">Service description</div>
               <div class="footer-text">${escapeHtml(snapshot.description).replace(/\n/g, "<br>")}</div>
             </div>` : ""}
             ${(snapshot.notes || cs.notes) ? `
             <div class="footer-block">
-              <div class="footer-label">Observacoes</div>
+              <div class="footer-label">Notes</div>
               <div class="footer-text">${escapeHtml(snapshot.notes || cs.notes || "").replace(/\n/g, "<br>")}</div>
             </div>` : ""}
           </div>` : ""}
@@ -1501,6 +1502,7 @@ function loadEstimateIntoForm(estimate) {
   elements.estimateForm.elements.notes.value = estimate.notes || "";
   elements.estimateSubmitButton.textContent = "Save changes";
   elements.estimateEditStatus.textContent = `Editing: ${estimate.estimateNumber}`;
+
   renderEstimateItemsEditor();
   renderEstimatePreview();
   elements.estimateForm.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1513,7 +1515,7 @@ function resetEstimateForm() {
   elements.estimateForm.elements.estimateRecordId.value = "";
   elements.estimateForm.elements.status.value = "rascunho";
   elements.estimateSubmitButton.textContent = "Save estimate";
-  elements.estimateEditStatus.textContent = "Novo estimate";
+  elements.estimateEditStatus.textContent = "New estimate";
   setupDefaults();
   renderEstimateItemsEditor();
   renderEstimatePreview();
@@ -1647,7 +1649,7 @@ function loadForecastIntoForm(forecast) {
   elements.forecastForm.elements.notes.value = forecast.notes || "";
   elements.forecastSubmitButton.textContent = "Save changes";
   elements.forecastEditStatus.textContent = `Editing: ${forecast.title}`;
-  openSlideOver(document.querySelector("#fpanel-forecast"), "Editar Previsao", "Planejamento");
+  openSlideOver(document.querySelector("#fpanel-forecast"), "Edit Forecast", "Planning");
 }
 
 function resetForecastForm() {
@@ -1671,7 +1673,7 @@ function loadOverheadExpenseIntoForm(expense) {
   elements.overheadForm.elements.notes.value = expense.notes || "";
   elements.overheadSubmitButton.textContent = "Save changes";
   elements.overheadEditStatus.textContent = `Editing: ${expense.category}`;
-  openSlideOver(document.querySelector("#fpanel-extras"), "Editar Despesa", "Controle");
+  openSlideOver(document.querySelector("#fpanel-extras"), "Edit Expense", "Control");
 }
 
 function resetOverheadForm() {
@@ -1695,7 +1697,7 @@ function renderProjectAssignments() {
     : projectsInProgress;
 
   if (!scopedProjects.length) {
-    elements.projectAssignmentsList.innerHTML = '<div class="empty-state">No active projects.</div>';
+    elements.projectAssignmentsList.innerHTML = '<div class="empty-state">No active projects found.</div>';
     return;
   }
 
@@ -1705,7 +1707,7 @@ function renderProjectAssignments() {
       return `
         <section class="detail-block">
           <strong>${project.clientName} - ${project.description}</strong>
-          <p>Equipe alocada: ${assignments.length}</p>
+          <p>Allocated team: ${assignments.length}</p>
           ${
             assignments.length
               ? assignments
@@ -1718,21 +1720,21 @@ function renderProjectAssignments() {
                     return `
                       <article class="list-item">
                         <strong>${assignment.employeeName}${assignment.role ? ` - ${assignment.role}` : ""}</strong>
-                        <p>Telefone: ${assignment.phone || "Nao informado"}</p>
-                        <p>Diaria: ${formatCurrency(assignment.dailyRate)}</p>
-                        <p>Incluido em: ${formatDate(assignment.assignedAt)}</p>
+                        <p>Phone: ${assignment.phone || "Not provided"}</p>
+                        <p>Daily rate: ${formatCurrency(assignment.dailyRate)}</p>
+                        <p>Added on: ${formatDate(assignment.assignedAt)}</p>
                         ${totalDays > 0
-                          ? `<p>Dias lancados: <strong>${totalDays}</strong> &nbsp;|&nbsp; Custo total: <strong class="money-negative">${formatCurrency(totalPaid)}</strong></p>`
-                          : `<p style="color:var(--muted);font-size:0.82rem;">Nenhum pagamento lancado ainda.</p>`
+                          ? `<p>Days recorded: <strong>${totalDays}</strong> &nbsp;|&nbsp; Total cost: <strong class="money-negative">${formatCurrency(totalPaid)}</strong></p>`
+                          : `<p style="color:var(--muted);font-size:0.82rem;">No payments recorded yet.</p>`
                         }
                         <div class="inline-actions">
-                          <button class="button-danger" data-remove-assignment="${project.id}:${assignment.id}">Remover</button>
+                          <button class="button-danger" data-remove-assignment="${project.id}:${assignment.id}">Remove</button>
                         </div>
                       </article>
                     `;
                   })
                   .join("")
-              : '<p>Nenhum funcionario vinculado.</p>'
+              : '<p>No employees linked.</p>'
           }
         </section>
       `;
@@ -1761,8 +1763,8 @@ function renderLaborRecords() {
     (record) => `
       <article class="list-item">
         <strong>${record.employeeName} - ${record.projectClient}</strong>
-        <p>${record.daysWorked} dia(s) | ${formatCurrency(record.amountPaid)}</p>
-        <p>${formatDate(record.workStartDate)}${record.workEndDate ? ` ate ${formatDate(record.workEndDate)}` : ""}</p>
+        <p>${record.daysWorked} day(s) | ${formatCurrency(record.amountPaid)}</p>
+        <p>${formatDate(record.workStartDate)}${record.workEndDate ? ` to ${formatDate(record.workEndDate)}` : ""}</p>
       </article>
     `,
   );
@@ -1775,7 +1777,7 @@ function renderLaborRecords() {
         <strong>${record.employeeName}${record.role ? ` - ${record.role}` : ""}</strong>
         <p>Project: ${record.projectClient}</p>
         <p>Paid: ${formatCurrency(record.amountPaid)} | Days: ${record.daysWorked}</p>
-        <p>${formatDate(record.workStartDate)}${record.workEndDate ? ` ate ${formatDate(record.workEndDate)}` : ""}</p>
+        <p>${formatDate(record.workStartDate)}${record.workEndDate ? ` to ${formatDate(record.workEndDate)}` : ""}</p>
         <p>${record.notes || "No notes."}</p>
         <div class="inline-actions">
           <button class="button-secondary" data-edit-labor-record="${record.id}">Edit</button>
@@ -1797,7 +1799,7 @@ function renderLaborRecords() {
   document.querySelectorAll("[data-delete-labor-record]").forEach((button) => {
     button.addEventListener("click", async () => {
       const record = state.laborRecords.find((item) => item.id === Number(button.dataset.deleteLaborRecord));
-      if (!record || !await showConfirm("Excluir pagamento", `Excluir pagamento de ${record.employeeName}?`)) {
+      if (!record || !await showConfirm("Delete payment", `Delete payment for ${record.employeeName}?`)) {
         return;
       }
 
@@ -1856,7 +1858,7 @@ function renderMaterials() {
         </div>
       </article>
     `,
-    getSearchEmptyMarkup("Nenhum material encontrado com esse filtro."),
+    getSearchEmptyMarkup("No materials found with this filter."),
   );
 
   document.querySelectorAll("[data-edit-material]").forEach((button) => {
@@ -1871,7 +1873,7 @@ function renderMaterials() {
   document.querySelectorAll("[data-delete-material]").forEach((button) => {
     button.addEventListener("click", async () => {
       const material = state.materials.find((item) => item.id === Number(button.dataset.deleteMaterial));
-      if (!material || !await showConfirm("Excluir material", `Excluir "${material.name}"?`)) {
+      if (!material || !await showConfirm("Delete material", `Delete "${material.name}"?`)) {
         return;
       }
 
@@ -1908,7 +1910,7 @@ function renderWeeklyPayments() {
   elements.weeklyLaborTotal.textContent = formatCurrency(scopedLaborTotal);
   elements.weeklyMaterialTotal.textContent = formatCurrency(scopedMaterialTotal);
   elements.weeklyOverallTotal.textContent = formatCurrency(totalOverall);
-  elements.weeklyPeriodLabel.textContent = `${formatDate(report.startDate)} ate ${formatDate(report.endDate)}`;
+  elements.weeklyPeriodLabel.textContent = `${formatDate(report.startDate)} to ${formatDate(report.endDate)}`;
 
   renderList(
     elements.weeklyEmployeesList,
@@ -1987,7 +1989,7 @@ function renderReceipts() {
   document.querySelectorAll("[data-delete-receipt]").forEach((button) => {
     button.addEventListener("click", async () => {
       const receipt = state.receipts.find((item) => item.id === Number(button.dataset.deleteReceipt));
-      if (!receipt || !await showConfirm("Excluir recebimento", `Excluir recebimento de ${formatCurrency(receipt.amount)}?`)) {
+      if (!receipt || !await showConfirm("Delete receipt", `Delete receipt of ${formatCurrency(receipt.amount)}?`)) {
         return;
       }
 
@@ -2038,7 +2040,7 @@ function renderForecasts() {
         </div>
       </article>
     `,
-    getSearchEmptyMarkup("Nenhuma previsao encontrada com esse filtro."),
+    getSearchEmptyMarkup("No forecasts found with this filter."),
   );
 
   document.querySelectorAll("[data-edit-forecast]").forEach((button) => {
@@ -2053,7 +2055,7 @@ function renderForecasts() {
   document.querySelectorAll("[data-delete-forecast]").forEach((button) => {
     button.addEventListener("click", async () => {
       const forecast = state.forecasts.find((item) => item.id === Number(button.dataset.deleteForecast));
-      if (!forecast || !await showConfirm("Excluir previsao", `Excluir "${forecast.title}"?`)) {
+      if (!forecast || !await showConfirm("Delete forecast", `Delete "${forecast.title}"?`)) {
         return;
       }
 
@@ -2068,7 +2070,7 @@ function renderForecasts() {
   document.querySelectorAll("[data-convert-forecast-to-project]").forEach((button) => {
     button.addEventListener("click", async () => {
       const forecast = state.forecasts.find((item) => item.id === Number(button.dataset.convertForecastToProject));
-      if (!forecast || !await showConfirm("Converter previsao", `Converter "${forecast.title}" em obra?`)) {
+      if (!forecast || !await showConfirm("Convert forecast", `Convert "${forecast.title}" to project?`)) {
         return;
       }
 
@@ -2135,7 +2137,7 @@ function renderOpsResumo() {
 
   // Material breakdown by category
   const matByCategory = materials.reduce((map, m) => {
-    const key = m.category || "Sem categoria";
+    const key = m.category || "No category";
     map.set(key, (map.get(key) || 0) + Number(m.cost || 0));
     return map;
   }, new Map());
@@ -2143,57 +2145,57 @@ function renderOpsResumo() {
   container.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;">
       <div style="background:#e8f4fd;border:1px solid #90c8f0;border-radius:12px;padding:18px 20px;">
-        <p style="margin:0 0 6px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#2a6496;">Total Mao de Obra</p>
+        <p style="margin:0 0 6px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#2a6496;">Total Labor</p>
         <strong style="font-size:1.5rem;color:#1a4f72;">${formatCurrency(totalLabor)}</strong>
-        <p style="margin:6px 0 0;font-size:0.78rem;color:#2a6496;">${laborRecords.length} lancamento${laborRecords.length !== 1 ? "s" : ""}</p>
+        <p style="margin:6px 0 0;font-size:0.78rem;color:#2a6496;">${laborRecords.length} record${laborRecords.length !== 1 ? "s" : ""}</p>
       </div>
       <div style="background:#f3eeff;border:1px solid #c3a8f5;border-radius:12px;padding:18px 20px;">
-        <p style="margin:0 0 6px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5b3a9e;">Total Materiais</p>
+        <p style="margin:0 0 6px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5b3a9e;">Total Materials</p>
         <strong style="font-size:1.5rem;color:#3d2070;">${formatCurrency(totalMaterial)}</strong>
         <p style="margin:6px 0 0;font-size:0.78rem;color:#5b3a9e;">${materials.length} item${materials.length !== 1 ? "s" : ""}</p>
       </div>
       <div style="background:#fef6e4;border:1px solid #f5c842;border-radius:12px;padding:18px 20px;">
-        <p style="margin:0 0 6px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a6000;">Gasto Total Geral</p>
+        <p style="margin:0 0 6px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a6000;">Total Spending</p>
         <strong style="font-size:1.5rem;color:#6b4c00;">${formatCurrency(totalGeral)}</strong>
-        <p style="margin:6px 0 0;font-size:0.78rem;color:#8a6000;">${totalGeral > 0 ? Math.round((totalLabor / totalGeral) * 100) : 0}% mao de obra &nbsp;|&nbsp; ${totalGeral > 0 ? Math.round((totalMaterial / totalGeral) * 100) : 0}% material</p>
+        <p style="margin:6px 0 0;font-size:0.78rem;color:#8a6000;">${totalGeral > 0 ? Math.round((totalLabor / totalGeral) * 100) : 0}% labor &nbsp;|&nbsp; ${totalGeral > 0 ? Math.round((totalMaterial / totalGeral) * 100) : 0}% material</p>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
       <article class="panel" style="margin:0;">
-        <p class="section-tag" style="margin:0 0 12px;">Mao de Obra por Funcionario</p>
+        <p class="section-tag" style="margin:0 0 12px;">Labor by Employee</p>
         ${laborByEmployee.size ? Array.from(laborByEmployee.values()).sort((a, b) => b.total - a.total).map((e) => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:0.84rem;">
             <div>
               <strong style="display:block;">${e.name}</strong>
-              <span style="color:var(--muted);font-size:0.76rem;">${e.days} dia${e.days !== 1 ? "s" : ""} trabalhado${e.days !== 1 ? "s" : ""}</span>
+              <span style="color:var(--muted);font-size:0.76rem;">${e.days} day${e.days !== 1 ? "s" : ""} worked</span>
             </div>
             <strong style="color:#1a4f72;">${formatCurrency(e.total)}</strong>
-          </div>`).join("") : '<p style="color:var(--muted);font-size:0.83rem;">Nenhum pagamento lancado.</p>'}
+          </div>`).join("") : '<p style="color:var(--muted);font-size:0.83rem;">No payments recorded.</p>'}
       </article>
 
       <article class="panel" style="margin:0;">
-        <p class="section-tag" style="margin:0 0 12px;">Materiais por Categoria</p>
+        <p class="section-tag" style="margin:0 0 12px;">Materials by Category</p>
         ${matByCategory.size ? Array.from(matByCategory.entries()).sort((a, b) => b[1] - a[1]).map(([cat, val]) => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:0.84rem;">
             <span style="text-transform:capitalize;">${cat}</span>
             <strong style="color:#3d2070;">${formatCurrency(val)}</strong>
-          </div>`).join("") : '<p style="color:var(--muted);font-size:0.83rem;">Nenhum material cadastrado.</p>'}
+          </div>`).join("") : '<p style="color:var(--muted);font-size:0.83rem;">No materials registered.</p>'}
       </article>
     </div>
 
     <article class="panel" style="margin:0;">
-      <p class="section-tag" style="margin:0 0 12px;">Gastos por Obra</p>
+      <p class="section-tag" style="margin:0 0 12px;">Spending by Project</p>
       ${projectRows.length ? `
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
             <thead>
               <tr style="border-bottom:2px solid var(--line);">
-                <th style="text-align:left;padding:8px 10px;color:var(--muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">Obra</th>
-                <th style="text-align:right;padding:8px 10px;color:#2a6496;font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">Mao de Obra</th>
-                <th style="text-align:right;padding:8px 10px;color:#5b3a9e;font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">Materiais</th>
-                <th style="text-align:right;padding:8px 10px;color:#8a6000;font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">Gasto Total</th>
-                <th style="text-align:right;padding:8px 10px;color:#1e6e3a;font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">A Receber</th>
+                <th style="text-align:left;padding:8px 10px;color:var(--muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">Project</th>
+                <th style="text-align:right;padding:8px 10px;color:#2a6496;font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">Labor</th>
+                <th style="text-align:right;padding:8px 10px;color:#5b3a9e;font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">Materials</th>
+                <th style="text-align:right;padding:8px 10px;color:#8a6000;font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">Total Spending</th>
+                <th style="text-align:right;padding:8px 10px;color:#1e6e3a;font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;">Outstanding</th>
               </tr>
             </thead>
             <tbody>
@@ -2209,7 +2211,7 @@ function renderOpsResumo() {
                   <td style="padding:9px 10px;text-align:right;color:#1e6e3a;font-weight:700;">${formatCurrency(row.project.remainingToReceive || 0)}</td>
                 </tr>`).join("")}
               <tr style="background:#e8f7ee;border-top:2px solid #7ecf96;">
-                <td style="padding:11px 10px;font-weight:700;color:#155229;">Total a Receber</td>
+                <td style="padding:11px 10px;font-weight:700;color:#155229;">Total Outstanding</td>
                 <td style="padding:11px 10px;text-align:right;color:#1a4f72;font-weight:700;">${formatCurrency(totalLabor)}</td>
                 <td style="padding:11px 10px;text-align:right;color:#3d2070;font-weight:700;">${formatCurrency(totalMaterial)}</td>
                 <td style="padding:11px 10px;text-align:right;font-weight:700;">${formatCurrency(totalGeral)}</td>
@@ -2217,13 +2219,13 @@ function renderOpsResumo() {
               </tr>
             </tbody>
           </table>
-        </div>` : '<p style="color:var(--muted);font-size:0.83rem;">Nenhuma obra encontrada.</p>'}
+        </div>` : '<p style="color:var(--muted);font-size:0.83rem;">No projects found.</p>'}
     </article>
 
     <div style="margin-top:16px;background:#e8f7ee;border:2px solid #7ecf96;border-radius:12px;padding:20px 24px;display:flex;justify-content:space-between;align-items:center;">
       <div>
-        <p style="margin:0 0 4px;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#1e6e3a;">Total Geral a Receber</p>
-        <p style="margin:0;font-size:0.82rem;color:#2a7a45;">${scopedProjects.length} obra${scopedProjects.length !== 1 ? "s" : ""} &nbsp;·&nbsp; Valor contratado: ${formatCurrency(scopedProjects.reduce((s, p) => s + Number(p.totalValue || 0), 0))} &nbsp;·&nbsp; Ja recebido: ${formatCurrency(scopedProjects.reduce((s, p) => s + Number(p.receivedAmount || 0), 0))}</p>
+        <p style="margin:0 0 4px;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#1e6e3a;">Total Outstanding</p>
+        <p style="margin:0;font-size:0.82rem;color:#2a7a45;">${scopedProjects.length} project${scopedProjects.length !== 1 ? "s" : ""} &nbsp;·&nbsp; Contracted: ${formatCurrency(scopedProjects.reduce((s, p) => s + Number(p.totalValue || 0), 0))} &nbsp;·&nbsp; Already received: ${formatCurrency(scopedProjects.reduce((s, p) => s + Number(p.receivedAmount || 0), 0))}</p>
       </div>
       <strong style="font-size:2rem;color:#155229;white-space:nowrap;margin-left:24px;">${formatCurrency(totalAReceber)}</strong>
     </div>
@@ -2288,7 +2290,7 @@ function renderOverheadExpenses() {
   document.querySelectorAll("[data-delete-overhead-expense]").forEach((button) => {
     button.addEventListener("click", async () => {
       const expense = state.overheadExpenses.find((item) => item.id === Number(button.dataset.deleteOverheadExpense));
-      if (!expense || !await showConfirm("Excluir despesa", `Excluir despesa de ${expense.category}?`)) {
+      if (!expense || !await showConfirm("Delete expense", `Delete expense for ${expense.category}?`)) {
         return;
       }
 
@@ -2327,7 +2329,7 @@ function renderClients() {
         </div>
       </article>
     `,
-    getSearchEmptyMarkup("Nenhum cliente encontrado com esse filtro."),
+    getSearchEmptyMarkup("No clients found with this filter."),
   );
 
   document.querySelectorAll("[data-edit-client]").forEach((button) => {
@@ -2342,7 +2344,7 @@ function renderClients() {
   document.querySelectorAll("[data-delete-client]").forEach((button) => {
     button.addEventListener("click", async () => {
       const client = state.clients.find((item) => item.id === Number(button.dataset.deleteClient));
-      if (!client || !await showConfirm("Excluir cliente", `Excluir "${client.name}"?`)) {
+      if (!client || !await showConfirm("Delete client", `Delete "${client.name}"?`)) {
         return;
       }
 
@@ -2390,7 +2392,7 @@ function renderEstimates() {
         </div>
       </article>
     `,
-    getSearchEmptyMarkup("Nenhum estimate encontrado com esse filtro."),
+    getSearchEmptyMarkup("No estimates found with this filter."),
   );
 
   document.querySelectorAll("[data-edit-estimate]").forEach((button) => {
@@ -2405,7 +2407,7 @@ function renderEstimates() {
   document.querySelectorAll("[data-convert-estimate]").forEach((button) => {
     button.addEventListener("click", async () => {
       const estimate = state.estimates.find((item) => item.id === Number(button.dataset.convertEstimate));
-      if (!estimate || !await showConfirm("Converter estimate", `Converter "${estimate.estimateNumber}" em obra?`)) {
+      if (!estimate || !await showConfirm("Convert estimate", `Convert "${estimate.estimateNumber}" to project?`)) {
         return;
       }
 
@@ -2420,7 +2422,7 @@ function renderEstimates() {
   document.querySelectorAll("[data-convert-estimate-to-forecast]").forEach((button) => {
     button.addEventListener("click", async () => {
       const estimate = state.estimates.find((item) => item.id === Number(button.dataset.convertEstimateToForecast));
-      if (!estimate || !await showConfirm("Converter estimate", `Converter "${estimate.estimateNumber}" em previsao?`)) {
+      if (!estimate || !await showConfirm("Convert estimate", `Convert "${estimate.estimateNumber}" to forecast?`)) {
         return;
       }
 
@@ -2447,7 +2449,7 @@ function renderEstimates() {
   document.querySelectorAll("[data-delete-estimate]").forEach((button) => {
     button.addEventListener("click", async () => {
       const estimate = state.estimates.find((item) => item.id === Number(button.dataset.deleteEstimate));
-      if (!estimate || !await showConfirm("Excluir estimate", `Excluir "${estimate.estimateNumber}"?`)) {
+      if (!estimate || !await showConfirm("Delete estimate", `Delete "${estimate.estimateNumber}"?`)) {
         return;
       }
 
@@ -2546,7 +2548,7 @@ function renderProjectsTable() {
   );
 
   if (!visibleProjects.length) {
-    elements.projectsTableBody.innerHTML = "<tr><td colspan=\"7\">Nenhuma obra encontrada com esse filtro.</td></tr>";
+    elements.projectsTableBody.innerHTML = "<tr><td colspan=\"7\">No projects found with this filter.</td></tr>";
     return;
   }
 
@@ -2724,13 +2726,13 @@ function formDataToJson(form) {
 function setupNavigation() {
   const sectionTitles = {
     dashboard: "Dashboard",
-    estimates: "Estimates e Clientes",
-    projects: "Obras",
-    team: "Equipe",
-    operations: "Operacoes",
-    forecasts: "Previsoes",
-    reports: "Relatorios",
-    settings: "Configuracoes da empresa",
+    estimates: "Estimates & Clients",
+    projects: "Projects",
+    team: "Team",
+    operations: "Operations",
+    forecasts: "Forecasts",
+    reports: "Reports",
+    settings: "Company settings",
   };
 
   document.querySelectorAll(".section-tab").forEach((tab) => {
@@ -2772,7 +2774,7 @@ function setupForms() {
       body: JSON.stringify(payload),
     });
     resetClientForm();
-    showToast(clientId ? "Cliente atualizado" : "Cliente salvo", "success");
+    showToast(clientId ? "Client updated" : "Client saved", "success");
     await refreshAll();
   });
 
@@ -2788,7 +2790,7 @@ function setupForms() {
       body: JSON.stringify(payload),
     });
     resetEstimateForm();
-    showToast(estimateId ? "Estimate atualizado" : "Estimate salvo", "success");
+    showToast(estimateId ? "Estimate updated" : "Estimate saved", "success");
     await refreshAll();
   });
 
@@ -2798,20 +2800,20 @@ function setupForms() {
 
   document.querySelector("#estimate-send-email-button")?.addEventListener("click", async () => {
     if (!state.editingEstimateId) {
-      showToast("Salve o estimate antes de enviar por email.", "info");
+      showToast("Save the estimate before sending by email.", "info");
       return;
     }
     const btn = document.querySelector("#estimate-send-email-button");
     const original = btn.textContent;
     btn.disabled = true;
-    btn.textContent = "Enviando...";
+    btn.textContent = "Sending...";
     try {
       const result = await api(`/api/estimates/${state.editingEstimateId}/send-approval`, { method: "POST" });
-      showToast(result.message || "Email enviado com sucesso!", "success");
+      showToast(result.message || "Email sent successfully!", "success");
       await refreshAll();
       loadNotifications();
     } catch (err) {
-      showToast(err.message || "Erro ao enviar email.", "error");
+      showToast(err.message || "Error sending email.", "error");
     } finally {
       btn.disabled = false;
       btn.textContent = original;
@@ -2820,7 +2822,7 @@ function setupForms() {
 
   elements.estimateConvertButton.addEventListener("click", async () => {
     if (!state.editingEstimateId) {
-      showToast("Salve o estimate antes de converter em obra.", "info");
+      showToast("Save the estimate before converting to project.", "info");
       return;
     }
 
@@ -2842,7 +2844,7 @@ function setupForms() {
       body: JSON.stringify(payload),
     });
     resetProjectForm();
-    showToast(projectId ? "Obra atualizada" : "Obra salva", "success");
+    showToast(projectId ? "Project updated" : "Project saved", "success");
     await refreshAll();
   });
 
@@ -2857,7 +2859,7 @@ function setupForms() {
       body: JSON.stringify(payload),
     });
     resetEmployeeForm();
-    showToast(employeeId ? "Funcionario atualizado" : "Funcionario salvo", "success");
+    showToast(employeeId ? "Employee updated" : "Employee saved", "success");
     await refreshAll();
   });
 
@@ -2902,7 +2904,7 @@ function setupForms() {
       body: JSON.stringify(payload),
     });
     resetLaborForm();
-    showToast(recordId ? "Pagamento atualizado" : "Pagamento salvo", "success");
+    showToast(recordId ? "Payment updated" : "Payment saved", "success");
     await refreshAll();
   });
 
@@ -2917,7 +2919,7 @@ function setupForms() {
       body: JSON.stringify(payload),
     });
     resetMaterialForm();
-    showToast(materialId ? "Material atualizado" : "Material salvo", "success");
+    showToast(materialId ? "Material updated" : "Material saved", "success");
     await refreshAll();
   });
 
@@ -2932,7 +2934,7 @@ function setupForms() {
       body: JSON.stringify(payload),
     });
     resetForecastForm();
-    showToast(forecastId ? "Previsao atualizada" : "Previsao salva", "success");
+    showToast(forecastId ? "Forecast updated" : "Forecast saved", "success");
     await refreshAll();
   });
 
@@ -2947,7 +2949,7 @@ function setupForms() {
       body: JSON.stringify(payload),
     });
     resetReceiptForm();
-    showToast(receiptId ? "Recebimento atualizado" : "Recebimento salvo", "success");
+    showToast(receiptId ? "Receipt updated" : "Receipt saved", "success");
     await refreshAll();
   });
 
@@ -2962,7 +2964,7 @@ function setupForms() {
       body: JSON.stringify(payload),
     });
     resetOverheadForm();
-    showToast(expenseId ? "Despesa atualizada" : "Despesa salva", "success");
+    showToast(expenseId ? "Expense updated" : "Expense saved", "success");
     await refreshAll();
   });
 
@@ -3197,6 +3199,7 @@ function updateSettingsPreview() {
 
   settingsPreviewName.textContent = data.company_name || "";
   settingsPreviewResponsible.textContent = data.responsible_name ? `Resp: ${data.responsible_name}` : "";
+
   const contact = [data.phone, data.email, data.website].filter(Boolean).join(" · ");
   settingsPreviewContact.textContent = contact;
   settingsPreviewAddress.textContent = data.address || "";
@@ -3232,7 +3235,7 @@ function setupSettings() {
       state.companySettings = settings;
       applySettingsToEstimateForm(settings);
       updateSettingsPreview();
-      showToast("Configuracoes salvas com sucesso.", "success");
+      showToast("Settings saved successfully.", "success");
     } catch (error) {
       showToast(error.message, "error");
     }
@@ -3341,11 +3344,11 @@ _slide.backdrop.addEventListener("click", closeSlideOver);
 
 function setupSlideOver() {
   const map = [
-    ["#btn-new-project",  "#fpanel-project",  "Nova Obra",           "Cadastro",    resetProjectForm],
-    ["#btn-new-employee", "#fpanel-employee",  "Novo Funcionario",    "Equipe",      resetEmployeeForm],
-    ["#btn-new-client",   "#fpanel-client",   "Novo Cliente",        "Clientes",    resetClientForm],
-    ["#btn-new-forecast", "#fpanel-forecast",  "Nova Previsao",       "Planejamento",resetForecastForm],
-    ["#btn-new-extras",   "#fpanel-extras",    "Nova Despesa Extra",  "Controle",    resetOverheadForm],
+    ["#btn-new-project",  "#fpanel-project",  "New Project",         "Registration", resetProjectForm],
+    ["#btn-new-employee", "#fpanel-employee",  "New Employee",        "Team",         resetEmployeeForm],
+    ["#btn-new-client",   "#fpanel-client",   "New Client",          "Clients",      resetClientForm],
+    ["#btn-new-forecast", "#fpanel-forecast",  "New Forecast",        "Planning",     resetForecastForm],
+    ["#btn-new-extras",   "#fpanel-extras",    "New Extra Expense",   "Control",      resetOverheadForm],
   ];
 
   // "Cadastrar novo cliente" link inside estimate form → navigate to clients section
@@ -3380,7 +3383,7 @@ async function loadNotifications() {
     if (!list) return;
 
     if (!notifications.length) {
-      list.innerHTML = '<p style="padding:24px;text-align:center;color:var(--muted);font-size:0.85rem;">Nenhuma notificacao ainda.</p>';
+      list.innerHTML = '<p style="padding:24px;text-align:center;color:var(--muted);font-size:0.85rem;">No notifications yet.</p>';
       return;
     }
 
@@ -3391,7 +3394,7 @@ async function loadNotifications() {
           ${!n.read ? '<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;flex-shrink:0;margin-top:4px;display:block;"></span>' : ""}
         </div>
         <p style="font-size:0.78rem;color:var(--muted);margin:4px 0 0;line-height:1.5;">${n.body}</p>
-        <p style="font-size:0.72rem;color:var(--muted);margin:4px 0 0;">${new Date(n.created_at).toLocaleString("pt-BR")}</p>
+        <p style="font-size:0.72rem;color:var(--muted);margin:4px 0 0;">${new Date(n.created_at).toLocaleString("en-US")}</p>
       </div>
     `).join("");
   } catch (_) {}
