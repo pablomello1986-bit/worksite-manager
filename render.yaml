@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: worksitemanager
+    name: worksite-manager
     runtime: node
     plan: free
     buildCommand: npm install
@@ -10,9 +10,3 @@ services:
         value: 22.5.0
       - key: NODE_ENV
         value: production
-      - key: DATA_DIR
-        value: /data
-    disk:
-      name: worksite-data
-      mountPath: /data
-      sizeGB: 1
