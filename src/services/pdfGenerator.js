@@ -1,5 +1,21 @@
 const PDFDocument = require("pdfkit");
 
+async function fetchImageBuffer(url) {
+  if (!url) return null;
+  try {
+    if (url.startsWith("data:")) {
+      const base64Data = url.split(",")[1];
+      if (!base64Data) return null;
+      return Buffer.from(base64Data, "base64");
+    }
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
 }
@@ -10,7 +26,9 @@ function formatDate(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
-function generateEstimatePDF(estimate) {
+async function generateEstimatePDF(estimate) {
+  const logoBuffer = await fetchImageBuffer(estimate.businessLogoUrl);
+
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: "A4" });
     const chunks = [];
@@ -22,22 +40,33 @@ function generateEstimatePDF(estimate) {
     const muted = "#6b7280";
     const light = "#f3f4f6";
 
-    // Header
-    doc.rect(0, 0, doc.page.width, 90).fill(primary);
-    doc.fillColor("#ffffff").fontSize(22).font("Helvetica-Bold")
-      .text(estimate.businessName || "Orcamento", 50, 28);
-    doc.fontSize(10).font("Helvetica")
-      .text(`Orcamento Nº ${estimate.estimateNumber || estimate.id}`, 50, 55)
-      .text(`Data: ${formatDate(estimate.issueDate)}`, 50, 68);
+    const headerH = logoBuffer ? 110 : 90;
 
-    if (estimate.validUntil) {
-      doc.text(`Valido ate: ${formatDate(estimate.validUntil)}`, 300, 68);
+    // Header background
+    doc.rect(0, 0, doc.page.width, headerH).fill(primary);
+
+    // Logo — right side of header
+    if (logoBuffer) {
+      try {
+        doc.image(logoBuffer, doc.page.width - 120, 15, { fit: [80, 80] });
+      } catch {}
     }
 
-    doc.fillColor(primary).moveDown(3);
+    // Header text
+    doc.fillColor("#ffffff").fontSize(22).font("Helvetica-Bold")
+      .text(estimate.businessName || "Orcamento", 50, 22);
+    doc.fontSize(10).font("Helvetica")
+      .text(`Orcamento No ${estimate.estimateNumber || estimate.id}`, 50, 52)
+      .text(`Data: ${formatDate(estimate.issueDate)}`, 50, 65);
+
+    if (estimate.validUntil) {
+      doc.text(`Valido ate: ${formatDate(estimate.validUntil)}`, 300, 65);
+    }
+
+    doc.fillColor(primary);
 
     // Client & Company info
-    doc.y = 110;
+    doc.y = headerH + 20;
     const colW = 240;
 
     doc.fontSize(8).font("Helvetica-Bold").fillColor(muted)
@@ -59,7 +88,7 @@ function generateEstimatePDF(estimate) {
     }
 
     // Work title
-    const titleY = 110;
+    const titleY = headerH + 20;
     doc.fontSize(8).font("Helvetica-Bold").fillColor(muted)
       .text("TITULO DO TRABALHO", 310, titleY, { width: colW });
     doc.fontSize(12).font("Helvetica-Bold").fillColor("#111827")
@@ -71,7 +100,7 @@ function generateEstimatePDF(estimate) {
     }
 
     // Divider
-    const divY = Math.max(doc.y, 185) + 16;
+    const divY = Math.max(doc.y, headerH + 95) + 16;
     doc.moveTo(50, divY).lineTo(doc.page.width - 50, divY)
       .strokeColor("#e5e7eb").lineWidth(1).stroke();
 

@@ -263,6 +263,9 @@ function initializeDatabase() {
     );
   `);
 
+  ensureColumn("estimate_tokens", "client_action", "TEXT");
+  ensureColumn("estimate_tokens", "client_notes", "TEXT");
+
   const legacyProjects = db
     .prepare(`
       SELECT p.id, p.received_amount AS receivedAmount, p.start_date AS startDate

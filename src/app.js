@@ -21,6 +21,7 @@ const app = express();
 const publicDir = path.join(__dirname, "..", "public");
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(express.static(publicDir));
 
 app.get("/api/health", (_req, res) => {
@@ -43,6 +44,9 @@ app.use("/api/receipts", receiptRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/ai", aiRoutes);
+
+// Public client-facing routes (must be before SPA catch-all)
+app.use(estimateApprovalRoutes);
 
 // Serve the SPA for all non-API routes
 app.use((_req, res) => {

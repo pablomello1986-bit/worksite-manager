@@ -80,7 +80,7 @@ router.get("/aprovar/:token", (request, response) => {
     return response.status(404).send(errorPage("Link invalido ou expirado."));
   }
   if (row.approved_at) {
-    return response.send(alreadyApprovedPage());
+    return response.send(alreadyActionedPage(row.client_action));
   }
   if (new Date(row.expires_at) < new Date()) {
     return response.status(410).send(errorPage("Este link de aprovacao expirou."));
@@ -95,29 +95,51 @@ router.get("/aprovar/:token", (request, response) => {
   return response.send(approvalPage(estimate, token, cfg));
 });
 
-// POST /aprovar/:token — cliente confirma aprovacao
+// POST /aprovar/:token — cliente executa acao (aprovar / solicitar ajustes / rejeitar)
 router.post("/aprovar/:token", (request, response) => {
   const { token } = request.params;
+  const action = (request.body?.action) || "approve";
+  const notes = (request.body?.notes || "").trim();
+
   const row = db.prepare("SELECT * FROM estimate_tokens WHERE token = ?").get(token);
 
   if (!row) return response.status(404).send(errorPage("Link invalido."));
-  if (row.approved_at) return response.send(alreadyApprovedPage());
+  if (row.approved_at) return response.send(alreadyActionedPage(row.client_action));
   if (new Date(row.expires_at) < new Date()) return response.status(410).send(errorPage("Link expirado."));
 
   const now = new Date().toISOString();
-  db.prepare("UPDATE estimate_tokens SET approved_at = ? WHERE token = ?").run(now, token);
-  db.prepare("UPDATE estimates SET status = 'aprovado' WHERE id = ?").run(row.estimate_id);
-
   const estimate = getEstimateWithItems(row.estimate_id);
-  db.prepare(`
-    INSERT INTO notifications (type, title, body, related_id)
-    VALUES ('estimate_approved', ?, ?, ?)
-  `).run(
-    `Orcamento aprovado: ${estimate?.workTitle || `#${row.estimate_id}`}`,
-    `O cliente ${row.client_email} aprovou o orcamento ${estimate?.estimateNumber || `#${row.estimate_id}`} — ${estimate?.workTitle || ""}.`,
-    row.estimate_id,
-  );
 
+  let status, clientAction, notifType, notifTitle, notifBody;
+
+  if (action === "adjustments") {
+    clientAction = "adjustments_requested";
+    status = "ajustes_solicitados";
+    notifType = "estimate_adjustments_requested";
+    notifTitle = `Ajustes solicitados: ${estimate?.workTitle || `#${row.estimate_id}`}`;
+    notifBody = `O cliente ${row.client_email} solicitou ajustes no orcamento ${estimate?.estimateNumber || `#${row.estimate_id}`}${notes ? `: "${notes}"` : "."}`;
+  } else if (action === "reject") {
+    clientAction = "rejected";
+    status = "recusado";
+    notifType = "estimate_rejected";
+    notifTitle = `Orcamento rejeitado: ${estimate?.workTitle || `#${row.estimate_id}`}`;
+    notifBody = `O cliente ${row.client_email} rejeitou o orcamento ${estimate?.estimateNumber || `#${row.estimate_id}`}${notes ? `: "${notes}"` : "."}`;
+  } else {
+    clientAction = "approved";
+    status = "aprovado";
+    notifType = "estimate_approved";
+    notifTitle = `Orcamento aprovado: ${estimate?.workTitle || `#${row.estimate_id}`}`;
+    notifBody = `O cliente ${row.client_email} aprovou o orcamento ${estimate?.estimateNumber || `#${row.estimate_id}`} — ${estimate?.workTitle || ""}.`;
+  }
+
+  db.prepare("UPDATE estimate_tokens SET approved_at = ?, client_action = ?, client_notes = ? WHERE token = ?")
+    .run(now, clientAction, notes, token);
+  db.prepare("UPDATE estimates SET status = ? WHERE id = ?").run(status, row.estimate_id);
+  db.prepare("INSERT INTO notifications (type, title, body, related_id) VALUES (?, ?, ?, ?)")
+    .run(notifType, notifTitle, notifBody, row.estimate_id);
+
+  if (action === "adjustments") return response.send(adjustmentsPage(estimate));
+  if (action === "reject") return response.send(rejectedPage(estimate));
   return response.send(successPage(estimate));
 });
 
@@ -152,6 +174,7 @@ function baseHtml(title, body) {
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',Arial,sans-serif;background:#f3f4f6;color:#111827;min-height:100vh}
     .top{background:#1a5446;padding:20px 32px;color:#fff}
+    .top-logo{width:72px;height:72px;border-radius:14px;object-fit:cover;display:block;margin-bottom:12px}
     .top h1{font-size:20px;font-weight:700}
     .top p{font-size:13px;color:#a7d4c8;margin-top:4px}
     .wrap{max-width:860px;margin:32px auto;padding:0 16px}
@@ -166,25 +189,63 @@ function baseHtml(title, body) {
     td{padding:10px 12px;border-bottom:1px solid #f3f4f6;color:#374151}
     tr:last-child td{border:none}
     .total-row td{font-weight:700;font-size:15px;color:#1a5446;border-top:2px solid #e5e7eb;padding-top:14px}
-    .approve-bar{position:sticky;bottom:0;background:#fff;border-top:1px solid #e5e7eb;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 -4px 16px rgba(0,0,0,.06)}
+    .approve-bar{position:sticky;bottom:0;background:#fff;border-top:1px solid #e5e7eb;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 -4px 16px rgba(0,0,0,.06);z-index:10}
     .approve-bar .amount{font-size:22px;font-weight:800;color:#1a5446}
     .approve-bar .amount small{font-size:13px;color:#6b7280;font-weight:400;display:block}
-    .btn{background:#1a5446;color:#fff;border:none;padding:14px 36px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;transition:background .2s}
-    .btn:hover{background:#14402f}
+    .btn-group{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .btn{border:none;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s}
+    .btn:hover{opacity:.85}
+    .btn-green{background:#1a5446;color:#fff}
+    .btn-amber{background:#d97706;color:#fff}
+    .btn-red{background:#dc2626;color:#fff}
+    .btn-outline{background:#fff;color:#374151;border:1px solid #d1d5db;padding:11px 20px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}
+    .btn-outline:hover{background:#f9fafb}
+    .action-overlay{display:none;position:fixed;bottom:72px;left:0;right:0;background:#fff;padding:24px 32px;box-shadow:0 -8px 32px rgba(0,0,0,.12);z-index:9;border-top:3px solid}
+    .action-overlay.green{border-color:#1a5446}
+    .action-overlay.amber{border-color:#d97706}
+    .action-overlay.red{border-color:#dc2626}
+    .action-overlay h3{margin-bottom:8px;font-size:16px}
+    .action-overlay p{color:#6b7280;font-size:14px;margin-bottom:16px;line-height:1.5}
+    .action-overlay textarea{width:100%;min-height:100px;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical}
+    .action-overlay .row{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+    .action-overlay-inner{max-width:860px;margin:0 auto}
     .tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase}
     .center{text-align:center;padding:60px 20px}
     .center h2{font-size:24px;margin-bottom:12px}
     .center p{color:#6b7280;font-size:15px}
     .icon{font-size:56px;margin-bottom:16px}
-    @media(max-width:600px){.grid2{grid-template-columns:1fr}.approve-bar{flex-direction:column;gap:12px}}
+    @media(max-width:600px){
+      .grid2{grid-template-columns:1fr}
+      .approve-bar{flex-direction:column;gap:12px;align-items:stretch}
+      .btn-group{justify-content:stretch}
+      .btn,.btn-outline{flex:1;text-align:center}
+      .action-overlay{bottom:130px}
+    }
   </style>
 </head>
-<body>${body}</body>
+<body>${body}
+<script>
+  function openAction(type) {
+    document.querySelectorAll('.action-overlay').forEach(function(el){ el.style.display='none'; });
+    var el = document.getElementById('overlay-' + type);
+    if (el) el.style.display = 'block';
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  }
+  function closeAction() {
+    document.querySelectorAll('.action-overlay').forEach(function(el){ el.style.display='none'; });
+  }
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeAction(); });
+</script>
+</body>
 </html>`;
 }
 
 function approvalPage(estimate, token, cfg) {
   const companyName = cfg.company_name || "WorkSite Manager";
+  const logoHtml = estimate.businessLogoUrl
+    ? `<img src="${estimate.businessLogoUrl}" alt="Logo" class="top-logo">`
+    : "";
+
   const rows = (estimate.items || []).map((item) => `
     <tr>
       <td>${item.description}${item.process ? `<br><small style="color:#9ca3af">${item.process}</small>` : ""}</td>
@@ -198,10 +259,14 @@ function approvalPage(estimate, token, cfg) {
   const taxRow = Number(estimate.taxAmount) > 0
     ? `<tr><td colspan="3" style="color:#6b7280">Taxa (${estimate.taxPercent || 0}%)</td><td class="r" style="color:#6b7280">${formatCurrency(estimate.taxAmount)}</td></tr>` : "";
 
-  return baseHtml(`Orcamento — ${estimate.workTitle}`, `
+  const total = formatCurrency(estimate.totalAmount);
+  const workTitle = estimate.workTitle;
+
+  return baseHtml(`Orcamento — ${workTitle}`, `
     <div class="top">
+      ${logoHtml}
       <h1>${companyName}</h1>
-      <p>Orcamento Nº ${estimate.estimateNumber || estimate.id} &nbsp;·&nbsp; ${formatDate(estimate.issueDate)}</p>
+      <p>Orcamento No ${estimate.estimateNumber || estimate.id} &nbsp;·&nbsp; ${formatDate(estimate.issueDate)}</p>
     </div>
     <div class="wrap">
       <div class="card">
@@ -213,7 +278,7 @@ function approvalPage(estimate, token, cfg) {
           </div>
           <div>
             <div class="label">Trabalho</div>
-            <div class="value"><strong>${estimate.workTitle}</strong></div>
+            <div class="value"><strong>${workTitle}</strong></div>
             ${estimate.validUntil ? `<div style="color:#6b7280;font-size:13px">Valido ate ${formatDate(estimate.validUntil)}</div>` : ""}
           </div>
         </div>
@@ -236,7 +301,7 @@ function approvalPage(estimate, token, cfg) {
             ${taxRow}
             <tr class="total-row">
               <td colspan="3">TOTAL DO ORCAMENTO</td>
-              <td class="r">${formatCurrency(estimate.totalAmount)}</td>
+              <td class="r">${total}</td>
             </tr>
           </tbody>
         </table>
@@ -244,17 +309,67 @@ function approvalPage(estimate, token, cfg) {
 
       ${estimate.notes ? `<div class="card"><div class="label" style="margin-bottom:8px">Observacoes</div><p style="font-size:14px;color:#374151;line-height:1.6">${estimate.notes}</p></div>` : ""}
 
-      <div style="height:90px"></div>
+      <div style="height:110px"></div>
     </div>
 
+    <!-- Approve overlay -->
+    <div id="overlay-approve" class="action-overlay green">
+      <div class="action-overlay-inner">
+        <h3 style="color:#1a5446">Confirmar aprovacao</h3>
+        <p>Voce esta aprovando o orcamento <strong>${workTitle}</strong> no valor de <strong>${total}</strong>.</p>
+        <form method="POST" action="/aprovar/${token}" onsubmit="this.querySelector('[type=submit]').disabled=true;this.querySelector('[type=submit]').textContent='Aguarde...'">
+          <input type="hidden" name="action" value="approve">
+          <div class="row">
+            <button type="button" onclick="closeAction()" class="btn-outline">Cancelar</button>
+            <button type="submit" class="btn btn-green">Confirmar Aprovacao</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Adjustments overlay -->
+    <div id="overlay-adjustments" class="action-overlay amber">
+      <div class="action-overlay-inner">
+        <h3 style="color:#d97706">Solicitar ajustes</h3>
+        <p>Descreva o que precisa ser ajustado no orcamento:</p>
+        <form method="POST" action="/aprovar/${token}" onsubmit="this.querySelector('[type=submit]').disabled=true;this.querySelector('[type=submit]').textContent='Enviando...'">
+          <input type="hidden" name="action" value="adjustments">
+          <textarea name="notes" required placeholder="Ex: Por favor, revise o valor do item X. Gostaria de adicionar Y ao escopo..."></textarea>
+          <div class="row">
+            <button type="button" onclick="closeAction()" class="btn-outline">Cancelar</button>
+            <button type="submit" class="btn btn-amber">Enviar Solicitacao</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Reject overlay -->
+    <div id="overlay-reject" class="action-overlay red">
+      <div class="action-overlay-inner">
+        <h3 style="color:#dc2626">Rejeitar orcamento</h3>
+        <p>Voce pode informar um motivo (opcional):</p>
+        <form method="POST" action="/aprovar/${token}" onsubmit="this.querySelector('[type=submit]').disabled=true;this.querySelector('[type=submit]').textContent='Aguarde...'">
+          <input type="hidden" name="action" value="reject">
+          <textarea name="notes" placeholder="Ex: O valor esta fora do orcamento disponivel..."></textarea>
+          <div class="row">
+            <button type="button" onclick="closeAction()" class="btn-outline">Cancelar</button>
+            <button type="submit" class="btn btn-red">Confirmar Rejeicao</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Action bar -->
     <div class="approve-bar">
       <div class="amount">
         <small>Valor total do orcamento</small>
-        ${formatCurrency(estimate.totalAmount)}
+        ${total}
       </div>
-      <form method="POST" action="/aprovar/${token}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Aguarde...'">
-        <button type="submit" class="btn">Aprovar este Orcamento</button>
-      </form>
+      <div class="btn-group">
+        <button onclick="openAction('reject')" class="btn btn-red">Rejeitar</button>
+        <button onclick="openAction('adjustments')" class="btn btn-amber">Solicitar Ajustes</button>
+        <button onclick="openAction('approve')" class="btn btn-green">Aprovar</button>
+      </div>
     </div>
   `);
 }
@@ -262,7 +377,7 @@ function approvalPage(estimate, token, cfg) {
 function successPage(estimate) {
   return baseHtml("Orcamento Aprovado", `
     <div class="center" style="margin-top:80px">
-      <div class="icon">✅</div>
+      <div class="icon">&#x2705;</div>
       <h2 style="color:#1a5446">Orcamento Aprovado!</h2>
       <p>Voce aprovou o orcamento <strong>${estimate?.workTitle || ""}</strong>.<br>
       A empresa foi notificada e entrara em contato em breve.</p>
@@ -270,12 +385,40 @@ function successPage(estimate) {
   `);
 }
 
-function alreadyApprovedPage() {
-  return baseHtml("Ja aprovado", `
+function adjustmentsPage(estimate) {
+  return baseHtml("Ajustes Solicitados", `
     <div class="center" style="margin-top:80px">
-      <div class="icon">✅</div>
-      <h2 style="color:#1a5446">Orcamento ja aprovado</h2>
-      <p>Este orcamento ja foi aprovado anteriormente. Obrigado!</p>
+      <div class="icon">&#x270F;&#xFE0F;</div>
+      <h2 style="color:#d97706">Ajustes Solicitados!</h2>
+      <p>Sua solicitacao foi enviada para <strong>${estimate?.businessName || "a empresa"}</strong>.<br>
+      Aguarde o retorno com o orcamento revisado.</p>
+    </div>
+  `);
+}
+
+function rejectedPage(estimate) {
+  return baseHtml("Orcamento Rejeitado", `
+    <div class="center" style="margin-top:80px">
+      <div class="icon">&#x274C;</div>
+      <h2 style="color:#dc2626">Orcamento Rejeitado</h2>
+      <p>Voce rejeitou o orcamento <strong>${estimate?.workTitle || ""}</strong>.<br>
+      A empresa foi notificada.</p>
+    </div>
+  `);
+}
+
+function alreadyActionedPage(clientAction) {
+  const map = {
+    approved: { icon: "&#x2705;", color: "#1a5446", title: "Orcamento ja aprovado", text: "Este orcamento ja foi aprovado anteriormente. Obrigado!" },
+    adjustments_requested: { icon: "&#x270F;&#xFE0F;", color: "#d97706", title: "Ajustes ja solicitados", text: "Voce ja solicitou ajustes para este orcamento. Aguarde o retorno da empresa." },
+    rejected: { icon: "&#x274C;", color: "#dc2626", title: "Orcamento ja rejeitado", text: "Este orcamento ja foi rejeitado." },
+  };
+  const m = map[clientAction] || map.approved;
+  return baseHtml(m.title, `
+    <div class="center" style="margin-top:80px">
+      <div class="icon">${m.icon}</div>
+      <h2 style="color:${m.color}">${m.title}</h2>
+      <p>${m.text}</p>
     </div>
   `);
 }
@@ -283,7 +426,7 @@ function alreadyApprovedPage() {
 function errorPage(msg) {
   return baseHtml("Erro", `
     <div class="center" style="margin-top:80px">
-      <div class="icon">❌</div>
+      <div class="icon">&#x274C;</div>
       <h2>Link invalido</h2>
       <p>${msg}</p>
     </div>
