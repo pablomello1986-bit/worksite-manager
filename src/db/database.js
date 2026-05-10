@@ -281,6 +281,40 @@ async function initializeDatabase() {
   `);
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS project_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL UNIQUE,
+      token TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      description TEXT NOT NULL,
+      completed INTEGER NOT NULL DEFAULT 0,
+      completed_at TEXT,
+      display_order INTEGER DEFAULT 0,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      url TEXT NOT NULL,
+      caption TEXT,
+      phase TEXT NOT NULL DEFAULT 'progress',
+      taken_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS paint_estimates (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       estimate_id INTEGER,
@@ -343,6 +377,7 @@ async function initializeDatabase() {
   ensureColumn("estimate_items", "material_description", "TEXT");
   ensureColumn("estimate_tokens", "client_action", "TEXT");
   ensureColumn("estimate_tokens", "client_notes", "TEXT");
+  ensureColumn("projects", "progress_percent", "INTEGER NOT NULL DEFAULT 0");
 
   // Seed SW paint products on first run
   const paintProductCount = db.prepare("SELECT COUNT(*) AS n FROM paint_products").get().n;

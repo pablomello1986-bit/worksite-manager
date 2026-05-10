@@ -18,7 +18,21 @@
       "Bash(taskkill *)",
       "Bash(Start-Process powershell *)",
       "Bash(node -e \"require\\('nodemailer'\\); require\\('pdfkit'\\); require\\('uuid'\\); console.log\\('OK'\\)\")",
-      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"cd 'C:\\\\Users\\\\pablo\\\\OneDrive\\\\Desktop\\\\Programas\\\\WorkSite Manager'; node src/server.js\")"
+      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"cd 'C:\\\\Users\\\\pablo\\\\OneDrive\\\\Desktop\\\\Programas\\\\WorkSite Manager'; node src/server.js\")",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\pablo\\\\OneDrive\\\\Desktop\\\\Programas\\\\WorkSite Manager\" | ForEach-Object { $_.Name })",
+      "Bash(node -e \"require\\('./src/app'\\)\")",
+      "Bash(node -e \"const {initializeDatabase} = require\\('./src/db/database'\\); initializeDatabase\\(\\); console.log\\('OK'\\);\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(node -e \"const {initializeDatabase} = require\\('./src/db/database'\\); initializeDatabase\\(\\).then\\(\\(\\) => console.log\\('OK - libsql funcionando'\\)\\).catch\\(e => console.error\\('ERRO:', e.message\\)\\)\")",
+      "Bash(node -e \"const lib = require\\('libsql'\\); console.log\\('exports:', Object.keys\\(lib\\)\\)\")",
+      "Bash(node -e \"const lib = require\\('libsql'\\); console.log\\(typeof lib, typeof lib.default, lib\\)\")",
+      "Bash(node -e \"const Database = require\\('libsql'\\); const db = new Database\\(':memory:'\\); db.exec\\('CREATE TABLE t \\(id INTEGER PRIMARY KEY, v TEXT\\)'\\); const r = db.prepare\\('INSERT INTO t \\(v\\) VALUES \\(?\\)'\\).run\\('hello'\\); console.log\\('lastInsertRowid:', r.lastInsertRowid\\); const row = db.prepare\\('SELECT * FROM t'\\).get\\(\\); console.log\\('row:', row\\);\")",
+      "Bash(node -e \"const {initializeDatabase} = require\\('./src/db/database'\\); initializeDatabase\\(\\).then\\(\\(\\) => console.log\\('OK'\\)\\).catch\\(e => console.error\\('ERRO:', e.message\\)\\)\")",
+      "Bash(node -e \"const Database = require\\('libsql'\\); const db = new Database\\(':memory:'\\); console.log\\('sync method:', typeof db.sync\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(git tag *)"
     ]
   }
 }

@@ -67,6 +67,9 @@
 
       <main class="main-content">
         <header class="topbar">
+          <button id="sidebar-toggle" class="sidebar-toggle-btn" aria-label="Toggle menu">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+          </button>
           <div>
             <p class="eyebrow">Professional construction management system</p>
             <h2 id="section-title">Dashboard</h2>
@@ -623,6 +626,7 @@
                     <option value="concluido">Completed</option>
                   </select>
                 </label>
+                <label>Progress % <small style="color:var(--muted);font-weight:400;">(0–100)</small><input name="progressPercent" type="number" min="0" max="100" step="5" value="0" /></label>
                 <label class="full-width">Notes<textarea name="notes" rows="2"></textarea></label>
                 <button type="submit" class="button-primary full-width" id="project-submit-button">Save project</button>
                 <button type="button" class="button-secondary full-width" id="project-cancel-edit">Cancel editing</button>

@@ -1,3 +1,4 @@
+const crypto = require("node:crypto");
 const express = require("express");
 const { db } = require("../db/database");
 const { writeAuditLog } = require("../services/auditLog");
@@ -222,7 +223,8 @@ router.patch("/:id", (request, response) => {
       estimated_days = @estimatedDays,
       status = @status,
       notes = @notes,
-      completed_at = @completedAt
+      completed_at = @completedAt,
+      progress_percent = @progressPercent
     WHERE id = @projectId
   `).run({
     clientId: request.body.clientId === undefined ? project.client_id : request.body.clientId ? Number(request.body.clientId) : null,
@@ -244,6 +246,7 @@ router.patch("/:id", (request, response) => {
     status: nextStatus,
     notes: request.body.notes ?? project.notes,
     completedAt: nextStatus === "concluido" ? project.completed_at || new Date().toISOString() : null,
+    progressPercent: request.body.progressPercent !== undefined ? Number(request.body.progressPercent) : Number(project.progress_percent || 0),
     projectId,
   });
 
@@ -405,6 +408,92 @@ router.delete("/:projectId/assignments/:assignmentId", (request, response) => {
   });
 
   return response.status(204).send();
+});
+
+// ── Client portal token ──────────────────────────────────────────────────────
+
+router.post("/:id/generate-token", (request, response) => {
+  const projectId = Number(request.params.id);
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(projectId);
+  if (!project) return response.status(404).json({ error: "Project not found." });
+
+  const token = crypto.randomBytes(24).toString("hex");
+  db.prepare(`
+    INSERT INTO project_tokens (project_id, token)
+    VALUES (@projectId, @token)
+    ON CONFLICT(project_id) DO UPDATE SET token = @token, created_at = CURRENT_TIMESTAMP
+  `).run({ projectId, token });
+  response.json({ token });
+});
+
+router.get("/:id/portal-token", (request, response) => {
+  const projectId = Number(request.params.id);
+  const row = db.prepare("SELECT token FROM project_tokens WHERE project_id = ?").get(projectId);
+  response.json({ token: row?.token || null });
+});
+
+// ── Project tasks ─────────────────────────────────────────────────────────────
+
+router.get("/:id/tasks", (request, response) => {
+  const tasks = db.prepare(
+    "SELECT id, description, completed, completed_at AS completedAt, display_order AS displayOrder FROM project_tasks WHERE project_id = ? ORDER BY display_order ASC, id ASC"
+  ).all(Number(request.params.id));
+  response.json(tasks);
+});
+
+router.post("/:id/tasks", (request, response) => {
+  const projectId = Number(request.params.id);
+  const { description, displayOrder } = request.body;
+  if (!description) return response.status(400).json({ error: "Task description is required." });
+  const result = db.prepare(
+    "INSERT INTO project_tasks (project_id, description, display_order) VALUES (?, ?, ?)"
+  ).run(projectId, description.trim(), Number(displayOrder || 0));
+  response.status(201).json(db.prepare("SELECT id, description, completed, completed_at AS completedAt, display_order AS displayOrder FROM project_tasks WHERE id = ?").get(result.lastInsertRowid));
+});
+
+router.patch("/tasks/:taskId", (request, response) => {
+  const taskId = Number(request.params.taskId);
+  const task = db.prepare("SELECT * FROM project_tasks WHERE id = ?").get(taskId);
+  if (!task) return response.status(404).json({ error: "Task not found." });
+  const completed = request.body.completed !== undefined ? (request.body.completed ? 1 : 0) : task.completed;
+  const description = request.body.description ?? task.description;
+  db.prepare(`
+    UPDATE project_tasks SET completed = @completed, completed_at = @completedAt, description = @description WHERE id = @id
+  `).run({
+    completed,
+    completedAt: completed && !task.completed_at ? new Date().toISOString().slice(0, 10) : (!completed ? null : task.completed_at),
+    description,
+    id: taskId,
+  });
+  response.json(db.prepare("SELECT id, description, completed, completed_at AS completedAt, display_order AS displayOrder FROM project_tasks WHERE id = ?").get(taskId));
+});
+
+router.delete("/tasks/:taskId", (request, response) => {
+  db.prepare("DELETE FROM project_tasks WHERE id = ?").run(Number(request.params.taskId));
+  response.status(204).end();
+});
+
+// ── Project photos ────────────────────────────────────────────────────────────
+
+router.get("/:id/photos", (request, response) => {
+  response.json(db.prepare(
+    "SELECT id, url, caption, phase, taken_at AS takenAt FROM project_photos WHERE project_id = ? ORDER BY phase ASC, id ASC"
+  ).all(Number(request.params.id)));
+});
+
+router.post("/:id/photos", (request, response) => {
+  const projectId = Number(request.params.id);
+  const { url, caption, phase, takenAt } = request.body;
+  if (!url) return response.status(400).json({ error: "Photo URL is required." });
+  const result = db.prepare(
+    "INSERT INTO project_photos (project_id, url, caption, phase, taken_at) VALUES (?, ?, ?, ?, ?)"
+  ).run(projectId, url.trim(), caption || null, phase || "progress", takenAt || null);
+  response.status(201).json(db.prepare("SELECT id, url, caption, phase, taken_at AS takenAt FROM project_photos WHERE id = ?").get(result.lastInsertRowid));
+});
+
+router.delete("/photos/:photoId", (request, response) => {
+  db.prepare("DELETE FROM project_photos WHERE id = ?").run(Number(request.params.photoId));
+  response.status(204).end();
 });
 
 router.delete("/:id", (request, response) => {

@@ -16,6 +16,7 @@ const reportRoutes = require("./routes/reports");
 const settingsRoutes = require("./routes/settings");
 const aiRoutes = require("./routes/ai");
 const paintEstimateRoutes = require("./routes/paintEstimates");
+const projectPortalRoutes = require("./routes/projectPortal");
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use("/api/paint-estimates", paintEstimateRoutes);
 
 // Public client-facing routes (must be before SPA catch-all)
 app.use(estimateApprovalRoutes);
+app.use(projectPortalRoutes);
 
 // Serve the SPA for all non-API routes
 app.use((_req, res) => {

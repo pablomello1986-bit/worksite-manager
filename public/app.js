@@ -24,6 +24,8 @@ const state = {
   },
   paintProducts: [],
   paintEstimates: [],
+  projectTasks: [],
+  projectPhotos: [],
   selectedProjectId: null,
   selectedProjectOverview: null,
   selectedClientId: null,
@@ -604,31 +606,56 @@ function renderProjectsList() {
   renderList(
     elements.projectsList,
     visibleProjects,
-    (project) => `
+    (project) => {
+      const pct = Math.min(100, Math.max(0, project.progressPercent || 0));
+      const recvPct = project.totalValue > 0 ? Math.min(100, Math.round((project.receivedAmount / project.totalValue) * 100)) : 0;
+      return `
       <article class="project-card ${project.id === state.selectedProjectId ? "active" : ""}">
-        <strong>${project.clientName}</strong>
-        <p>${project.projectType || "Type not provided"}</p>
-        <p>${makeStatusPill(project.status)}</p>
-        <p>Profit: <span class="${project.profit >= 0 ? "money-positive" : "money-negative"}">${formatCurrency(project.profit)}</span></p>
-        <div class="inline-actions">
-          <button class="button-secondary" data-open-project="${project.id}">Open details</button>
+        <div class="project-card-top">
+          <div>
+            <strong>${project.clientName}</strong>
+            <p style="font-size:0.8rem;color:var(--muted);margin-top:2px;">${project.projectType || project.description?.slice(0, 40) || "—"}</p>
+          </div>
+          ${makeStatusPill(project.status)}
+        </div>
+        <div class="project-card-progress">
+          <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">
+            <span>Progress</span><span>${pct}%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+        </div>
+        <div class="project-card-finance">
+          <div>
+            <span>Received</span>
+            <strong>${formatCurrency(project.receivedAmount)}</strong>
+            <small>of ${formatCurrency(project.totalValue)} (${recvPct}%)</small>
+          </div>
+          <div style="text-align:right;">
+            <span>Profit</span>
+            <strong class="${project.profit >= 0 ? "money-positive" : "money-negative"}">${formatCurrency(project.profit)}</strong>
+          </div>
+        </div>
+        <div class="inline-actions" style="margin-top:10px;">
+          <button class="button-secondary" data-open-project="${project.id}">Open</button>
           <button class="button-secondary" data-edit-project="${project.id}">Edit</button>
-          ${
-            project.status === "em andamento"
-              ? `<button class="button-primary" data-complete-project="${project.id}">Complete</button>`
-              : ""
-          }
+          ${project.status === "em andamento" ? `<button class="button-primary" data-complete-project="${project.id}">Complete</button>` : ""}
           <button class="button-danger" data-delete-project="${project.id}">Delete</button>
         </div>
-      </article>
-    `,
+      </article>`;
+    },
     getSearchEmptyMarkup("No projects found with this filter."),
   );
 
   document.querySelectorAll("[data-open-project]").forEach((button) => {
     button.addEventListener("click", async () => {
       state.selectedProjectId = Number(button.dataset.openProject);
-      await refreshSelectedProjectOverview();
+      const [, tasks, photos] = await Promise.all([
+        refreshSelectedProjectOverview(),
+        api(`/api/projects/${state.selectedProjectId}/tasks`).catch(() => []),
+        api(`/api/projects/${state.selectedProjectId}/photos`).catch(() => []),
+      ]);
+      state.projectTasks = tasks;
+      state.projectPhotos = photos;
       renderSelects();
       renderDashboard();
       renderProjectsList();
@@ -687,24 +714,88 @@ function renderProjectDetail() {
   if (projectLayout) projectLayout.classList.add("detail-open");
 
   const { project, assignments, laborRecords, materials } = state.selectedProjectOverview;
+  const tasks = state.projectTasks || [];
+  const photos = state.projectPhotos || [];
+  const pct = Math.min(100, Math.max(0, project.progressPercent || 0));
+  const recvPct = project.totalValue > 0 ? Math.min(100, Math.round((project.receivedAmount / project.totalValue) * 100)) : 0;
+  const tasksDone = tasks.filter((t) => t.completed).length;
+
+  const photosByPhase = {};
+  photos.forEach((p) => { (photosByPhase[p.phase] = photosByPhase[p.phase] || []).push(p); });
+  const phaseLabel = { before: "Before", progress: "In Progress", after: "After / Completed" };
 
   elements.projectDetail.innerHTML = `
-    <div class="detail-block">
-      <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:14px;">
+    <!-- Header -->
+    <div class="detail-block detail-header-block">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:10px;">
           <button class="button-secondary narrow-button" id="btn-back-to-list">&#8592; Back</button>
           <div>
-            <p class="section-tag" style="margin:0 0 4px;">Project details</p>
-            <strong style="font-size:1.05rem;">${project.clientName}</strong>
-            ${makeStatusPill(project.status)}
+            <strong style="font-size:1.05rem;display:block;">${project.clientName}</strong>
+            <p style="font-size:0.8rem;color:var(--muted);margin-top:2px;">${project.description}</p>
           </div>
         </div>
-        <div class="inline-actions" style="margin-top:0;flex-shrink:0;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${makeStatusPill(project.status)}
           <button class="button-secondary narrow-button" data-edit-project="${project.id}">Edit</button>
+          <button class="button-primary narrow-button" id="btn-gen-portal-link" style="background:#1a5446;">Share with client</button>
           <button class="button-danger narrow-button" data-delete-project="${project.id}">Delete</button>
         </div>
       </div>
-      <p style="color:var(--muted);margin:0 0 12px;font-size:0.85rem;line-height:1.5;">${project.description}</p>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="detail-block">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <p class="section-tag" style="margin:0;">Project Progress</p>
+        <strong style="font-size:1rem;color:var(--primary);">${pct}%</strong>
+      </div>
+      <div class="progress-track" style="height:16px;">
+        <div class="progress-fill" style="width:${pct}%;height:16px;border-radius:20px;"></div>
+      </div>
+      ${tasks.length ? `<p style="font-size:0.75rem;color:var(--muted);margin-top:6px;">${tasksDone} of ${tasks.length} tasks completed</p>` : ""}
+    </div>
+
+    <!-- Financial summary cards -->
+    <div class="detail-block">
+      <p class="section-tag" style="margin:0 0 10px;">Financials</p>
+      <div class="detail-finance-grid">
+        <div class="detail-finance-card blue">
+          <span>Contract</span><strong>${formatCurrency(project.totalValue)}</strong>
+        </div>
+        <div class="detail-finance-card green">
+          <span>Received</span><strong>${formatCurrency(project.receivedAmount)}</strong>
+        </div>
+        <div class="detail-finance-card orange">
+          <span>Outstanding</span><strong>${formatCurrency(project.remainingToReceive)}</strong>
+        </div>
+        <div class="detail-finance-card ${project.profit >= 0 ? "profit-pos" : "profit-neg"}">
+          <span>Profit</span><strong>${formatCurrency(project.profit)}</strong>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">
+          <span>Payment received</span><span>${recvPct}%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" style="width:${recvPct}%;background:linear-gradient(90deg,#2563eb,#60a5fa);"></div></div>
+      </div>
+      <div style="display:grid;gap:4px;margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">
+        ${[
+          ["Labor cost", formatCurrency(project.laborCost)],
+          ["Material cost", formatCurrency(project.materialCost)],
+          ["Total costs", formatCurrency(project.totalCosts)],
+          ["Budget", formatCurrency(project.budgetValue)],
+          ["Budget balance", formatCurrency(project.budgetBalance)],
+        ].map(([k, v]) => `
+          <div style="display:flex;justify-content:space-between;font-size:0.82rem;padding:4px 0;">
+            <span style="color:var(--muted);">${k}</span><strong>${v}</strong>
+          </div>`).join("")}
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div class="detail-block">
+      <p class="section-tag" style="margin:0 0 10px;">Details</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         ${[
           ["Address", project.address || "Not provided"],
@@ -713,29 +804,65 @@ function renderProjectDetail() {
           ["Payment", project.paymentMethod || "Not provided"],
           ["Installments", project.installmentInfo || "Not provided"],
           ["Due date", formatDate(project.dueDate)],
+          ["Start date", formatDate(project.startDate)],
+          ["Est. days", project.estimatedDays || "—"],
         ].map(([k,v]) => `<div style="font-size:0.8rem;"><span style="display:block;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:0.68rem;letter-spacing:.08em;margin-bottom:2px;">${k}</span>${v}</div>`).join("")}
       </div>
-      ${project.notes ? `<p style="margin:12px 0 0;font-size:0.82rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;">${project.notes}</p>` : ""}
+      ${project.notes ? `<p style="margin:10px 0 0;font-size:0.82rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;">${project.notes}</p>` : ""}
     </div>
+
+    <!-- Tasks -->
     <div class="detail-block">
-      <p class="section-tag" style="margin:0 0 10px;">Financials</p>
-      <div style="display:grid;gap:8px;">
-        ${[
-          ["Contracted amount", formatCurrency(project.totalValue), ""],
-          ["Estimated budget", formatCurrency(project.budgetValue), ""],
-          ["Amount received", formatCurrency(project.receivedAmount), ""],
-          ["Received balance", formatCurrency(project.receivedBalance), project.receivedBalance >= 0 ? "money-positive" : "money-negative"],
-          ["Outstanding", formatCurrency(project.remainingToReceive), ""],
-          ["Total cost", formatCurrency(project.totalCosts), ""],
-          ["Budget balance", formatCurrency(project.budgetBalance), ""],
-          ["Current profit", formatCurrency(project.profit), project.profit >= 0 ? "money-positive" : "money-negative"],
-        ].map(([k,v,cls]) => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:0.85rem;">
-            <span style="color:var(--muted);">${k}</span>
-            <strong class="${cls}">${v}</strong>
-          </div>`).join("")}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <p class="section-tag" style="margin:0;">Tasks (${tasksDone}/${tasks.length})</p>
+      </div>
+      <div id="detail-tasks-list">
+        ${tasks.length ? tasks.map((t) => `
+          <div class="detail-task-item" data-task-id="${t.id}">
+            <button class="task-toggle-btn ${t.completed ? "done" : ""}" data-toggle-task="${t.id}" title="${t.completed ? "Mark pending" : "Mark done"}">
+              ${t.completed ? "✓" : "○"}
+            </button>
+            <span class="${t.completed ? "task-done-text" : ""}">${t.description}</span>
+            <button class="task-del-btn" data-del-task="${t.id}" title="Delete">✕</button>
+          </div>`).join("") : `<p style="font-size:0.83rem;color:var(--muted);">No tasks yet.</p>`}
+      </div>
+      <div class="detail-task-add">
+        <input id="new-task-input" placeholder="Add a task..." style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:0.85rem;" />
+        <button id="btn-add-task" class="button-primary narrow-button">Add</button>
       </div>
     </div>
+
+    <!-- Photos -->
+    <div class="detail-block">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <p class="section-tag" style="margin:0;">Photos (${photos.length})</p>
+      </div>
+      <div class="detail-photo-add" style="margin-bottom:12px;">
+        <input id="new-photo-url" placeholder="Photo URL (https://...)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:0.82rem;" />
+        <input id="new-photo-caption" placeholder="Caption" style="width:130px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:0.82rem;" />
+        <select id="new-photo-phase" style="padding:7px 8px;border:1px solid var(--line);border-radius:8px;font-size:0.82rem;">
+          <option value="before">Before</option>
+          <option value="progress" selected>Progress</option>
+          <option value="after">After</option>
+        </select>
+        <button id="btn-add-photo" class="button-primary narrow-button">Add photo</button>
+      </div>
+      <div id="detail-photos-grid">
+        ${photos.length ? ["before","progress","after"].filter((ph) => photosByPhase[ph]?.length).map((ph) => `
+          <p style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:8px 0 6px;">${phaseLabel[ph]}</p>
+          <div class="detail-photo-grid">
+            ${photosByPhase[ph].map((p) => `
+              <div class="detail-photo-item">
+                <img src="${p.url}" alt="${p.caption || ph}" loading="lazy" onerror="this.parentElement.style.background='#f3f4f6'" />
+                ${p.caption ? `<p class="detail-photo-caption">${p.caption}</p>` : ""}
+                <button class="detail-photo-del" data-del-photo="${p.id}" title="Remove photo">✕</button>
+              </div>`).join("")}
+          </div>`).join("")
+        : `<p style="font-size:0.83rem;color:var(--muted);">No photos yet. Add a URL above.</p>`}
+      </div>
+    </div>
+
+    <!-- Team -->
     <div class="detail-block">
       <p class="section-tag" style="margin:0 0 8px;">Allocated team (${assignments.length})</p>
       ${assignments.length
@@ -746,8 +873,10 @@ function renderProjectDetail() {
             </div>`).join("")
         : `<p style="color:var(--muted);font-size:0.83rem;margin:0;">No employees allocated.</p>`}
     </div>
+
+    <!-- Recent labor & materials -->
     <div class="detail-block">
-      <p class="section-tag" style="margin:0 0 8px;">Latest payments</p>
+      <p class="section-tag" style="margin:0 0 8px;">Recent labor payments</p>
       ${laborRecords.length
         ? laborRecords.slice(0, 5).map((r) => `
             <div style="display:flex;justify-content:space-between;font-size:0.83rem;padding:5px 0;border-bottom:1px solid var(--line);">
@@ -766,57 +895,92 @@ function renderProjectDetail() {
             </div>`).join("")
         : `<p style="color:var(--muted);font-size:0.83rem;margin:0;">No materials recorded.</p>`}
     </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">
-      <div style="background:#e8f4fd;border:1px solid #90c8f0;border-radius:10px;padding:14px 16px;">
-        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#2a6496;">Outstanding</p>
-        <strong style="font-size:1.15rem;color:#1a4f72;">${formatCurrency(project.remainingToReceive)}</strong>
-      </div>
-      <div style="background:#fef6e4;border:1px solid #f5c842;border-radius:10px;padding:14px 16px;">
-        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a6000;">Labor</p>
-        <strong style="font-size:1.15rem;color:#6b4c00;">${formatCurrency(project.laborCost)}</strong>
-      </div>
-      <div style="background:#f3eeff;border:1px solid #c3a8f5;border-radius:10px;padding:14px 16px;">
-        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5b3a9e;">Material</p>
-        <strong style="font-size:1.15rem;color:#3d2070;">${formatCurrency(project.materialCost)}</strong>
-      </div>
-      <div style="background:${project.profit >= 0 ? "#eaf7ee" : "#fdecea"};border:1px solid ${project.profit >= 0 ? "#7ecf96" : "#f5a8a3"};border-radius:10px;padding:14px 16px;">
-        <p style="margin:0 0 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${project.profit >= 0 ? "#1e6e3a" : "#a0291f"};">Current Profit</p>
-        <strong style="font-size:1.15rem;color:${project.profit >= 0 ? "#155229" : "#7a1f18"};">${formatCurrency(project.profit)}</strong>
-      </div>
-    </div>
   `;
 
-  const backBtn = elements.projectDetail.querySelector("#btn-back-to-list");
-  if (backBtn) {
-    backBtn.addEventListener("click", () => {
-      state.selectedProjectId = null;
-      state.selectedProjectOverview = null;
-      renderProjectsList();
-      renderProjectDetail();
-      renderDashboard();
-    });
-  }
-
-  elements.projectDetail.querySelectorAll("[data-edit-project]").forEach((button) => {
-    button.addEventListener("click", () => {
-      loadProjectIntoForm(project);
-    });
+  // Back button
+  elements.projectDetail.querySelector("#btn-back-to-list")?.addEventListener("click", () => {
+    state.selectedProjectId = null;
+    state.selectedProjectOverview = null;
+    state.projectTasks = [];
+    state.projectPhotos = [];
+    renderProjectsList();
+    renderProjectDetail();
+    renderDashboard();
   });
 
-  elements.projectDetail.querySelectorAll("[data-delete-project]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      if (!await showConfirm("Delete project", `Delete "${project.clientName}"? This removes related payments, materials and receipts.`)) {
-        return;
-      }
+  // Edit / Delete
+  elements.projectDetail.querySelectorAll("[data-edit-project]").forEach((btn) => btn.addEventListener("click", () => loadProjectIntoForm(project)));
+  elements.projectDetail.querySelectorAll("[data-delete-project]").forEach((btn) => btn.addEventListener("click", async () => {
+    if (!await showConfirm("Delete project", `Delete "${project.clientName}"? This removes related payments, materials and receipts.`)) return;
+    await api(`/api/projects/${btn.dataset.deleteProject}`, { method: "DELETE" });
+    state.selectedProjectId = null;
+    state.projectTasks = [];
+    state.projectPhotos = [];
+    resetProjectForm();
+    showToast("Project deleted", "success");
+    await refreshAll();
+  }));
 
-      await api(`/api/projects/${button.dataset.deleteProject}`, { method: "DELETE" });
-      state.selectedProjectId = null;
-      resetProjectForm();
-      showToast("Project deleted", "success");
-      await refreshAll();
-    });
+  // Share with client
+  elements.projectDetail.querySelector("#btn-gen-portal-link")?.addEventListener("click", async () => {
+    const data = await api(`/api/projects/${project.id}/generate-token`, { method: "POST" });
+    const origin = window.location.origin;
+    const url = `${origin}/project-view/${data.token}`;
+    await navigator.clipboard.writeText(url).catch(() => {});
+    showToast("Client link copied to clipboard!", "success");
+    const box = document.createElement("div");
+    box.style.cssText = "margin-top:10px;padding:10px 14px;background:#f0fdf8;border:1px solid #1a5446;border-radius:8px;font-size:0.8rem;word-break:break-all;color:#1a5446;";
+    box.textContent = url;
+    elements.projectDetail.querySelector("#btn-gen-portal-link").insertAdjacentElement("afterend", box);
   });
+
+  // Tasks: toggle
+  elements.projectDetail.querySelectorAll("[data-toggle-task]").forEach((btn) => btn.addEventListener("click", async () => {
+    const taskId = Number(btn.dataset.toggleTask);
+    const task = state.projectTasks.find((t) => t.id === taskId);
+    await api(`/api/projects/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ completed: !task?.completed }) });
+    const [tasks] = await Promise.all([api(`/api/projects/${project.id}/tasks`).catch(() => [])]);
+    state.projectTasks = tasks;
+    renderProjectDetail();
+  }));
+
+  // Tasks: delete
+  elements.projectDetail.querySelectorAll("[data-del-task]").forEach((btn) => btn.addEventListener("click", async () => {
+    await api(`/api/projects/tasks/${btn.dataset.delTask}`, { method: "DELETE" });
+    state.projectTasks = await api(`/api/projects/${project.id}/tasks`).catch(() => []);
+    renderProjectDetail();
+  }));
+
+  // Tasks: add
+  elements.projectDetail.querySelector("#btn-add-task")?.addEventListener("click", async () => {
+    const input = elements.projectDetail.querySelector("#new-task-input");
+    const desc = input?.value.trim();
+    if (!desc) return;
+    await api(`/api/projects/${project.id}/tasks`, { method: "POST", body: JSON.stringify({ description: desc }) });
+    state.projectTasks = await api(`/api/projects/${project.id}/tasks`).catch(() => []);
+    renderProjectDetail();
+  });
+  elements.projectDetail.querySelector("#new-task-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") elements.projectDetail.querySelector("#btn-add-task")?.click();
+  });
+
+  // Photos: add
+  elements.projectDetail.querySelector("#btn-add-photo")?.addEventListener("click", async () => {
+    const url = elements.projectDetail.querySelector("#new-photo-url")?.value.trim();
+    if (!url) { showToast("Enter a photo URL.", "info"); return; }
+    const caption = elements.projectDetail.querySelector("#new-photo-caption")?.value.trim();
+    const phase = elements.projectDetail.querySelector("#new-photo-phase")?.value;
+    await api(`/api/projects/${project.id}/photos`, { method: "POST", body: JSON.stringify({ url, caption, phase }) });
+    state.projectPhotos = await api(`/api/projects/${project.id}/photos`).catch(() => []);
+    renderProjectDetail();
+  });
+
+  // Photos: delete
+  elements.projectDetail.querySelectorAll("[data-del-photo]").forEach((btn) => btn.addEventListener("click", async () => {
+    await api(`/api/projects/photos/${btn.dataset.delPhoto}`, { method: "DELETE" });
+    state.projectPhotos = await api(`/api/projects/${project.id}/photos`).catch(() => []);
+    renderProjectDetail();
+  }));
 }
 
 function renderEmployees() {
@@ -938,6 +1102,7 @@ function loadProjectIntoForm(project) {
   elements.projectForm.elements.estimatedDays.value = project.estimatedDays ?? "";
   elements.projectForm.elements.status.value = project.status || "em andamento";
   elements.projectForm.elements.notes.value = project.notes || "";
+  elements.projectForm.elements.progressPercent.value = project.progressPercent ?? 0;
   elements.projectSubmitButton.textContent = "Save changes";
   elements.projectEditStatus.textContent = `Editing: ${project.clientName}`;
   openSlideOver(document.querySelector("#fpanel-project"), "Edit Project", "Registration");
@@ -2905,6 +3070,12 @@ function setupNavigation() {
       if (tabId === "ops-resumo") renderOpsResumo();
     });
   });
+
+  // Mobile sidebar toggle
+  const sidebarToggle = document.querySelector("#sidebar-toggle");
+  const sidebar = document.querySelector(".sidebar");
+  sidebarToggle?.addEventListener("click", () => sidebar?.classList.toggle("open"));
+  document.querySelectorAll(".nav-button").forEach((btn) => btn.addEventListener("click", () => sidebar?.classList.remove("open")));
 
   elements.navButtons.forEach((button) => {
     button.addEventListener("click", () => {
