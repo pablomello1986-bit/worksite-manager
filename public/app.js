@@ -24,6 +24,7 @@ const state = {
   },
   selectedProjectId: null,
   selectedProjectOverview: null,
+  selectedClientId: null,
   editingProjectId: null,
   editingClientId: null,
   editingEstimateId: null,
@@ -2318,41 +2319,189 @@ function renderClients() {
   renderList(
     elements.clientsList,
     visibleClients,
-    (client) => `
-      <article class="list-item">
-        <strong>${client.name}</strong>
-        <p>${client.companyName || "No company provided"}</p>
-        <p>${client.phone || "No phone"}${client.email ? ` | ${client.email}` : ""}</p>
-        <div class="inline-actions">
-          <button class="button-secondary" data-edit-client="${client.id}">Edit</button>
-          <button class="button-danger" data-delete-client="${client.id}">Delete</button>
+    (client) => {
+      const isSelected = client.id === state.selectedClientId;
+      return `
+        <div class="client-sidebar-item${isSelected ? " selected" : ""}" data-select-client="${client.id}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div style="min-width:0;flex:1">
+              <div style="font-weight:700;font-size:14px;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${client.name}</div>
+              ${client.companyName ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${client.companyName}</div>` : ""}
+              ${client.email ? `<div style="font-size:11px;color:#9ca3af;margin-top:1px">${client.email}</div>` : ""}
+            </div>
+            <div style="display:flex;gap:4px;flex-shrink:0;margin-top:2px">
+              <button class="button-secondary" style="padding:3px 8px;font-size:11px" data-edit-client="${client.id}">Edit</button>
+              <button class="button-danger" style="padding:3px 8px;font-size:11px" data-delete-client="${client.id}">Del</button>
+            </div>
+          </div>
         </div>
-      </article>
-    `,
-    getSearchEmptyMarkup("No clients found with this filter."),
+      `;
+    },
+    getSearchEmptyMarkup("No clients found."),
   );
+
+  document.querySelectorAll("[data-select-client]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      const clientId = Number(el.dataset.selectClient);
+      state.selectedClientId = clientId === state.selectedClientId ? null : clientId;
+      renderClients();
+      renderClientEstimatesView();
+    });
+  });
 
   document.querySelectorAll("[data-edit-client]").forEach((button) => {
     button.addEventListener("click", () => {
       const client = state.clients.find((item) => item.id === Number(button.dataset.editClient));
-      if (client) {
-        loadClientIntoForm(client);
-      }
+      if (client) loadClientIntoForm(client);
     });
   });
 
   document.querySelectorAll("[data-delete-client]").forEach((button) => {
     button.addEventListener("click", async () => {
       const client = state.clients.find((item) => item.id === Number(button.dataset.deleteClient));
-      if (!client || !await showConfirm("Delete client", `Delete "${client.name}"?`)) {
-        return;
-      }
+      if (!client || !(await showConfirm("Delete client", `Delete "${client.name}"?`))) return;
 
       await api(`/api/clients/${client.id}`, { method: "DELETE" });
-      if (state.editingClientId === client.id) {
-        resetClientForm();
-      }
+      if (state.editingClientId === client.id) resetClientForm();
+      if (state.selectedClientId === client.id) state.selectedClientId = null;
       await refreshAll();
+    });
+  });
+
+  renderClientEstimatesView();
+}
+
+function renderClientEstimatesView() {
+  const panel = document.querySelector("#client-estimates-panel");
+  if (!panel) return;
+
+  if (!state.selectedClientId) {
+    panel.innerHTML = `
+      <div class="panel" style="text-align:center;padding:64px 24px;color:#9ca3af">
+        <div style="font-size:48px;margin-bottom:16px">&#128101;</div>
+        <p style="font-size:16px;font-weight:600;color:#374151;margin-bottom:8px">Select a client</p>
+        <p style="font-size:14px">Click on a name in the list to view their estimates</p>
+      </div>
+    `;
+    return;
+  }
+
+  const client = state.clients.find((c) => c.id === state.selectedClientId);
+  if (!client) return;
+
+  const clientEstimates = state.estimates.filter((e) => e.clientId === state.selectedClientId);
+
+  const byYear = {};
+  clientEstimates.forEach((est) => {
+    const year = est.issueDate ? est.issueDate.slice(0, 4) : "—";
+    if (!byYear[year]) byYear[year] = [];
+    byYear[year].push(est);
+  });
+  const years = Object.keys(byYear).sort((a, b) => Number(b) - Number(a));
+
+  const statusStyle = {
+    rascunho:             { label: "Draft",        color: "#6b7280", bg: "#f3f4f6" },
+    enviado:              { label: "Sent",          color: "#1d4ed8", bg: "#eff6ff" },
+    aprovado:             { label: "Approved",      color: "#15803d", bg: "#f0fdf4" },
+    ajustes_solicitados:  { label: "Adjustments",   color: "#d97706", bg: "#fffbeb" },
+    recusado:             { label: "Declined",      color: "#dc2626", bg: "#fef2f2" },
+    convertido:           { label: "Converted",     color: "#7c3aed", bg: "#f5f3ff" },
+  };
+
+  const yearSections = years.map((year) => {
+    const ests = byYear[year];
+    const yearTotal = ests.reduce((sum, e) => sum + Number(e.totalAmount || 0), 0);
+
+    const estRows = ests.map((est) => {
+      const s = statusStyle[est.status] || { label: est.status, color: "#6b7280", bg: "#f3f4f6" };
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:#111827">${est.estimateNumber} — ${est.workTitle}</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:2px">${formatDate(est.issueDate)}</div>
+          </div>
+          <span style="padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;flex-shrink:0;background:${s.bg};color:${s.color}">${s.label}</span>
+          <div style="font-size:14px;font-weight:700;color:#111827;white-space:nowrap;min-width:90px;text-align:right">${formatCurrency(est.totalAmount)}</div>
+          <button class="button-secondary" style="padding:4px 10px;font-size:12px;flex-shrink:0" data-edit-estimate-from-client="${est.id}">Edit</button>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div class="panel" style="margin-bottom:12px;padding:20px 24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:2px solid #f3f4f6">
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <span style="font-size:20px;font-weight:800;color:#111827">${year}</span>
+            <span style="font-size:13px;color:#9ca3af">${ests.length} estimate${ests.length !== 1 ? "s" : ""}</span>
+          </div>
+          <strong style="font-size:17px;color:#1a5446">${formatCurrency(yearTotal)}</strong>
+        </div>
+        ${estRows}
+      </div>
+    `;
+  }).join("");
+
+  const overallTotal = clientEstimates.reduce((sum, e) => sum + Number(e.totalAmount || 0), 0);
+  const approvedCount = clientEstimates.filter((e) => e.status === "aprovado").length;
+
+  panel.innerHTML = `
+    <div class="panel" style="margin-bottom:16px;padding:20px 24px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+        <div>
+          <h3 style="font-size:18px;margin:0 0 4px">${client.name}</h3>
+          ${client.companyName ? `<p style="color:#6b7280;font-size:14px;margin:0 0 2px">${client.companyName}</p>` : ""}
+          ${client.email ? `<p style="color:#9ca3af;font-size:13px;margin:0 0 2px">${client.email}</p>` : ""}
+          ${client.phone ? `<p style="color:#9ca3af;font-size:13px;margin:0">${client.phone}</p>` : ""}
+        </div>
+        <button class="button-secondary" style="flex-shrink:0" data-edit-client="${client.id}">Edit client</button>
+      </div>
+      <div style="display:flex;gap:28px;margin-top:16px;padding-top:16px;border-top:1px solid #f3f4f6;flex-wrap:wrap">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;margin-bottom:4px">Estimates</div>
+          <div style="font-size:22px;font-weight:800;color:#111827">${clientEstimates.length}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;margin-bottom:4px">Total value</div>
+          <div style="font-size:22px;font-weight:800;color:#1a5446">${formatCurrency(overallTotal)}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;margin-bottom:4px">Approved</div>
+          <div style="font-size:22px;font-weight:800;color:#15803d">${approvedCount}</div>
+        </div>
+      </div>
+    </div>
+
+    ${years.length > 0 ? yearSections : `
+      <div class="panel" style="text-align:center;padding:40px 24px;color:#9ca3af">
+        <p style="font-size:14px">No estimates for this client yet.</p>
+        <button class="button-primary" style="margin-top:16px" data-new-estimate-for-client="${client.id}">+ Create first estimate</button>
+      </div>
+    `}
+  `;
+
+  panel.querySelectorAll("[data-edit-client]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const c = state.clients.find((c) => c.id === Number(btn.dataset.editClient));
+      if (c) loadClientIntoForm(c);
+    });
+  });
+
+  panel.querySelectorAll("[data-edit-estimate-from-client]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const est = state.estimates.find((e) => e.id === Number(btn.dataset.editEstimateFromClient));
+      if (!est) return;
+      document.querySelector('[data-tab="estimates-orcamentos"]')?.click();
+      loadEstimateIntoForm(est);
+    });
+  });
+
+  panel.querySelectorAll("[data-new-estimate-for-client]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelector('[data-tab="estimates-orcamentos"]')?.click();
+      resetEstimateForm();
+      const sel = elements.estimateForm?.elements?.clientId;
+      if (sel) sel.value = String(btn.dataset.newEstimateForClient);
     });
   });
 }

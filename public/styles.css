@@ -1505,3 +1505,46 @@ body.slide-open .grid-3 {
 .tab-pane-block.active {
   display: block;
 }
+
+/* ── Client split view (sidebar + estimates panel) ── */
+.client-split-view {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.client-sidebar-panel .list-wrap {
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+.client-sidebar-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 6px;
+  background: #fff;
+  transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+
+.client-sidebar-item:hover {
+  border-color: rgba(26, 84, 70, 0.3);
+  background: #f6fdfb;
+}
+
+.client-sidebar-item.selected {
+  border-color: #1a5446;
+  background: #f0fdf8;
+  box-shadow: 0 0 0 2px rgba(26, 84, 70, 0.12);
+}
+
+@media (max-width: 860px) {
+  .client-split-view {
+    grid-template-columns: 1fr;
+  }
+  .client-sidebar-panel .list-wrap {
+    max-height: 300px;
+  }
+}

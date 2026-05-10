@@ -439,7 +439,8 @@
           </div><!-- /tab-estimates-orcamentos -->
 
           <div class="tab-pane-block" id="tab-estimates-clientes">
-            <div class="grid-2 uneven">
+            <!-- Registration form stays in DOM for slide-over reuse -->
+            <div id="fpanel-client-wrapper" style="display:none">
               <article class="panel" id="fpanel-client">
                 <div class="panel-header split">
                   <div>
@@ -463,7 +464,11 @@
                   <button type="button" class="button-secondary full-width" id="client-cancel-edit">Cancel editing</button>
                 </form>
               </article>
-              <article class="panel">
+            </div>
+
+            <!-- Two-column view: sidebar + estimates panel -->
+            <div class="client-split-view">
+              <article class="panel client-sidebar-panel">
                 <div class="panel-header split">
                   <div>
                     <p class="section-tag">Client base</p>
@@ -477,6 +482,8 @@
                 </label>
                 <div class="list-wrap" id="clients-list"></div>
               </article>
+
+              <div id="client-estimates-panel"></div>
             </div>
           </div><!-- /tab-estimates-clientes -->
 
