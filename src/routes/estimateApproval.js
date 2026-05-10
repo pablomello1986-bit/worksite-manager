@@ -114,7 +114,7 @@ router.post("/aprovar/:token", (request, response) => {
 
   if (action === "adjustments") {
     clientAction = "adjustments_requested";
-    status = "ajustes_solicitados";
+    status = "enviado"; // stays as 'sent' — adjustment details tracked in client_action
     notifType = "estimate_adjustments_requested";
     notifTitle = `Ajustes solicitados: ${estimate?.workTitle || `#${row.estimate_id}`}`;
     notifBody = `O cliente ${row.client_email} solicitou ajustes no orcamento ${estimate?.estimateNumber || `#${row.estimate_id}`}${notes ? `: "${notes}"` : "."}`;

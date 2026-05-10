@@ -10,3 +10,7 @@ services:
         value: 22.5.0
       - key: NODE_ENV
         value: production
+      - key: TURSO_DATABASE_URL
+        sync: false  # Set in Render dashboard: libsql://your-db.turso.io
+      - key: TURSO_AUTH_TOKEN
+        sync: false  # Set in Render dashboard: your Turso auth token

@@ -1,6 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { DatabaseSync } = require("node:sqlite");
+const Database = require("libsql");
 
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "..", "..", "data");
 const dbPath = path.join(dataDir, "worksite-manager.db");
@@ -9,7 +9,15 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const db = new DatabaseSync(dbPath);
+// Use Turso cloud sync when credentials are set (production), otherwise local only
+const dbOptions = {};
+if (process.env.TURSO_DATABASE_URL) {
+  dbOptions.syncUrl = process.env.TURSO_DATABASE_URL;
+  dbOptions.authToken = process.env.TURSO_AUTH_TOKEN || "";
+  dbOptions.syncInterval = 30; // sync every 30 seconds in background
+}
+
+const db = new Database(dbPath, dbOptions);
 db.exec("PRAGMA foreign_keys = ON;");
 
 function getTableColumns(tableName) {
@@ -26,7 +34,12 @@ function ensureColumn(tableName, columnName, definition) {
   }
 }
 
-function initializeDatabase() {
+async function initializeDatabase() {
+  // On startup: pull latest data from Turso so deploys never lose data
+  if (process.env.TURSO_DATABASE_URL) {
+    await db.sync();
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,8 +66,10 @@ function initializeDatabase() {
       FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
       FOREIGN KEY (estimate_id) REFERENCES estimates(id) ON DELETE SET NULL,
       FOREIGN KEY (forecast_id) REFERENCES forecasts(id) ON DELETE SET NULL
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS clients (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -64,8 +79,10 @@ function initializeDatabase() {
       address TEXT,
       logo_url TEXT,
       notes TEXT
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS employees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -76,8 +93,10 @@ function initializeDatabase() {
       daily_rate REAL NOT NULL CHECK (daily_rate >= 0),
       hourly_rate REAL NOT NULL DEFAULT 0 CHECK (hourly_rate >= 0),
       is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1))
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS labor_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       project_id INTEGER NOT NULL,
@@ -89,8 +108,10 @@ function initializeDatabase() {
       notes TEXT,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS materials (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       project_id INTEGER NOT NULL,
@@ -105,8 +126,10 @@ function initializeDatabase() {
       payment_status TEXT NOT NULL DEFAULT 'pago' CHECK (payment_status IN ('pago', 'pendente')),
       purchased_at TEXT NOT NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS project_assignments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       project_id INTEGER NOT NULL,
@@ -116,8 +139,10 @@ function initializeDatabase() {
       UNIQUE(project_id, employee_id),
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS receipts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       project_id INTEGER NOT NULL,
@@ -125,8 +150,10 @@ function initializeDatabase() {
       received_at TEXT NOT NULL,
       notes TEXT,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS forecasts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_id INTEGER,
@@ -142,13 +169,14 @@ function initializeDatabase() {
       company_percent REAL NOT NULL DEFAULT 0,
       tax_amount REAL NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'planejada' CHECK (status IN ('planejada', 'aprovada', 'convertida')),
-      notes TEXT
-      ,
+      notes TEXT,
       FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
       FOREIGN KEY (estimate_id) REFERENCES estimates(id) ON DELETE SET NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS estimates (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_id INTEGER,
@@ -165,12 +193,14 @@ function initializeDatabase() {
       tax_percent REAL NOT NULL DEFAULT 0,
       tax_amount REAL NOT NULL DEFAULT 0,
       total_amount REAL NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'enviado', 'aprovado', 'recusado', 'convertido')),
+      status TEXT NOT NULL DEFAULT 'rascunho',
       notes TEXT,
       FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS estimate_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       estimate_id INTEGER NOT NULL,
@@ -179,8 +209,10 @@ function initializeDatabase() {
       unit_price REAL NOT NULL DEFAULT 0,
       line_total REAL NOT NULL DEFAULT 0,
       FOREIGN KEY (estimate_id) REFERENCES estimates(id) ON DELETE CASCADE
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS overhead_expenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       category TEXT NOT NULL,
@@ -188,8 +220,10 @@ function initializeDatabase() {
       amount REAL NOT NULL CHECK (amount >= 0),
       spent_at TEXT NOT NULL,
       notes TEXT
-    );
+    )
+  `);
 
+  db.exec(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       entity_type TEXT NOT NULL,
@@ -198,7 +232,39 @@ function initializeDatabase() {
       summary TEXT NOT NULL,
       payload TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS company_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL DEFAULT ''
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS estimate_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      estimate_id INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      client_email TEXT,
+      expires_at TEXT NOT NULL,
+      approved_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (estimate_id) REFERENCES estimates(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      read INTEGER NOT NULL DEFAULT 0,
+      related_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 
   ensureColumn("projects", "client_phone", "TEXT");
@@ -218,13 +284,11 @@ function initializeDatabase() {
   ensureColumn("projects", "installment_info", "TEXT");
   ensureColumn("projects", "due_date", "TEXT");
   ensureColumn("projects", "notes", "TEXT");
-
   ensureColumn("employees", "phone", "TEXT");
   ensureColumn("employees", "document_id", "TEXT");
   ensureColumn("employees", "pix_key", "TEXT");
   ensureColumn("employees", "hourly_rate", "REAL NOT NULL DEFAULT 0");
   ensureColumn("employees", "is_active", "INTEGER NOT NULL DEFAULT 1");
-
   ensureColumn("materials", "category", "TEXT");
   ensureColumn("materials", "supplier", "TEXT");
   ensureColumn("materials", "invoice_number", "TEXT");
@@ -234,35 +298,6 @@ function initializeDatabase() {
   ensureColumn("estimate_items", "process", "TEXT");
   ensureColumn("estimate_items", "material_responsibility", "TEXT NOT NULL DEFAULT 'empresa'");
   ensureColumn("estimate_items", "material_description", "TEXT");
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS company_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS estimate_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      estimate_id INTEGER NOT NULL,
-      token TEXT NOT NULL UNIQUE,
-      client_email TEXT,
-      expires_at TEXT NOT NULL,
-      approved_at TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (estimate_id) REFERENCES estimates(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      body TEXT NOT NULL,
-      read INTEGER NOT NULL DEFAULT 0,
-      related_id INTEGER,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-
   ensureColumn("estimate_tokens", "client_action", "TEXT");
   ensureColumn("estimate_tokens", "client_notes", "TEXT");
 
@@ -288,6 +323,11 @@ function initializeDatabase() {
       "Saldo inicial migrado do cadastro da obra",
     );
   });
+
+  // Push any schema changes to Turso after initialization
+  if (process.env.TURSO_DATABASE_URL) {
+    await db.sync();
+  }
 }
 
 module.exports = {

@@ -2934,11 +2934,15 @@ function setupForms() {
     delete payload.estimateRecordId;
     delete payload.businessLogoFile;
 
-    await api(estimateId ? `/api/estimates/${estimateId}` : "/api/estimates", {
+    const saved = await api(estimateId ? `/api/estimates/${estimateId}` : "/api/estimates", {
       method: estimateId ? "PATCH" : "POST",
       body: JSON.stringify(payload),
     });
-    resetEstimateForm();
+    // Keep the estimate open so the user can send by email right after saving
+    state.editingEstimateId = saved.id;
+    elements.estimateForm.elements.estimateRecordId.value = String(saved.id);
+    elements.estimateSubmitButton.textContent = "Save changes";
+    elements.estimateEditStatus.textContent = `Editing: ${saved.estimateNumber}`;
     showToast(estimateId ? "Estimate updated" : "Estimate saved", "success");
     await refreshAll();
   });
