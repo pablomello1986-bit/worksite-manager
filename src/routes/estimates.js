@@ -338,6 +338,26 @@ router.post("/:id/convert-to-project", (request, response) => {
     estimateId,
   });
 
+  // Auto-transfer any linked paint estimates as project materials
+  const paintEstimates = db.prepare("SELECT * FROM paint_estimates WHERE estimate_id = ?").all(estimateId);
+  if (paintEstimates.length) {
+    const today = new Date().toISOString().slice(0, 10);
+    const insertMat = db.prepare(`
+      INSERT INTO materials (project_id, name, category, quantity, unit, unit_price, cost, payment_status, purchased_at)
+      VALUES (@projectId, @name, 'paint', @qty, 'gallon', @unitPrice, @cost, 'pendente', @today)
+    `);
+    paintEstimates.forEach((pe) => {
+      insertMat.run({
+        projectId: result.lastInsertRowid,
+        name: pe.product_name || "Paint",
+        qty: pe.gallons_final,
+        unitPrice: pe.price_per_gallon,
+        cost: pe.total,
+        today,
+      });
+    });
+  }
+
   const project = getProjectWithMetricsById(result.lastInsertRowid);
   writeAuditLog({
     entityType: "estimate",

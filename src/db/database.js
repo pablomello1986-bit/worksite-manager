@@ -267,6 +267,49 @@ async function initializeDatabase() {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS paint_products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      finish TEXT,
+      coverage_sqft REAL NOT NULL DEFAULT 350,
+      price_per_gallon REAL NOT NULL DEFAULT 0,
+      price_source TEXT,
+      notes TEXT,
+      updated_at TEXT
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS paint_estimates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      estimate_id INTEGER,
+      client_id INTEGER,
+      project_name TEXT NOT NULL,
+      total_sqft REAL NOT NULL,
+      num_coats INTEGER NOT NULL DEFAULT 2,
+      surface_type TEXT NOT NULL DEFAULT 'medium',
+      product_id INTEGER,
+      product_name TEXT,
+      finish TEXT,
+      price_per_gallon REAL NOT NULL DEFAULT 0,
+      discount_percent REAL NOT NULL DEFAULT 0,
+      tax_amount REAL NOT NULL DEFAULT 0,
+      margin_amount REAL NOT NULL DEFAULT 0,
+      coverage_used REAL NOT NULL DEFAULT 350,
+      adjusted_area REAL NOT NULL DEFAULT 0,
+      gallons_needed REAL NOT NULL DEFAULT 0,
+      gallons_final INTEGER NOT NULL DEFAULT 0,
+      subtotal REAL NOT NULL DEFAULT 0,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      total REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (estimate_id) REFERENCES estimates(id) ON DELETE SET NULL,
+      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+      FOREIGN KEY (product_id) REFERENCES paint_products(id) ON DELETE SET NULL
+    )
+  `);
+
   ensureColumn("projects", "client_phone", "TEXT");
   ensureColumn("projects", "client_id", "INTEGER");
   ensureColumn("projects", "estimate_id", "INTEGER");
@@ -300,6 +343,34 @@ async function initializeDatabase() {
   ensureColumn("estimate_items", "material_description", "TEXT");
   ensureColumn("estimate_tokens", "client_action", "TEXT");
   ensureColumn("estimate_tokens", "client_notes", "TEXT");
+
+  // Seed SW paint products on first run
+  const paintProductCount = db.prepare("SELECT COUNT(*) AS n FROM paint_products").get().n;
+  if (paintProductCount === 0) {
+    const seedProducts = [
+      { name: "Emerald Interior", finish: "Flat",       coverage: 400, price: 89.99 },
+      { name: "Emerald Interior", finish: "Matte",      coverage: 400, price: 89.99 },
+      { name: "Emerald Interior", finish: "Eggshell",   coverage: 400, price: 89.99 },
+      { name: "Emerald Interior", finish: "Satin",      coverage: 400, price: 89.99 },
+      { name: "Duration Home",    finish: "Flat",       coverage: 350, price: 79.99 },
+      { name: "Duration Home",    finish: "Matte",      coverage: 350, price: 79.99 },
+      { name: "Duration Home",    finish: "Eggshell",   coverage: 350, price: 79.99 },
+      { name: "Duration Home",    finish: "Satin",      coverage: 350, price: 79.99 },
+      { name: "SuperPaint",       finish: "Flat",       coverage: 350, price: 59.99 },
+      { name: "SuperPaint",       finish: "Eggshell",   coverage: 350, price: 59.99 },
+      { name: "SuperPaint",       finish: "Satin",      coverage: 350, price: 59.99 },
+      { name: "SuperPaint",       finish: "Semi-Gloss", coverage: 350, price: 59.99 },
+      { name: "ProClassic",       finish: "Soft Gloss", coverage: 300, price: 69.99 },
+      { name: "ProClassic",       finish: "Semi-Gloss", coverage: 300, price: 69.99 },
+      { name: "ProClassic",       finish: "Gloss",      coverage: 300, price: 69.99 },
+    ];
+    const insertProduct = db.prepare(`
+      INSERT INTO paint_products (name, finish, coverage_sqft, price_per_gallon, price_source, updated_at)
+      VALUES (@name, @finish, @coverage, @price, 'Sherwin-Williams', @now)
+    `);
+    const now = new Date().toISOString().slice(0, 10);
+    seedProducts.forEach((p) => insertProduct.run({ ...p, now }));
+  }
 
   const legacyProjects = db
     .prepare(`

@@ -1548,3 +1548,65 @@ body.slide-open .grid-3 {
     max-height: 300px;
   }
 }
+
+/* ── Paint Estimate Calculator ── */
+.paint-calc-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.paint-results-card {
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.paint-result-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+
+.paint-result-row:last-child {
+  border-bottom: none;
+}
+
+.paint-result-row span {
+  color: var(--muted);
+}
+
+.paint-result-row strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.paint-result-row.accent-row {
+  background: #f0fdf8;
+}
+
+.paint-result-row.accent-row strong {
+  color: var(--primary);
+  font-size: 1rem;
+}
+
+.paint-result-row.total-row {
+  background: var(--primary);
+}
+
+.paint-result-row.total-row span,
+.paint-result-row.total-row strong {
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+@media (max-width: 860px) {
+  .paint-calc-layout {
+    grid-template-columns: 1fr;
+  }
+}

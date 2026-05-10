@@ -15,6 +15,7 @@ const receiptRoutes = require("./routes/receipts");
 const reportRoutes = require("./routes/reports");
 const settingsRoutes = require("./routes/settings");
 const aiRoutes = require("./routes/ai");
+const paintEstimateRoutes = require("./routes/paintEstimates");
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use("/api/receipts", receiptRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/paint-estimates", paintEstimateRoutes);
 
 // Public client-facing routes (must be before SPA catch-all)
 app.use(estimateApprovalRoutes);

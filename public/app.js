@@ -22,6 +22,8 @@ const state = {
     materials: "",
     projects: "",
   },
+  paintProducts: [],
+  paintEstimates: [],
   selectedProjectId: null,
   selectedProjectOverview: null,
   selectedClientId: null,
@@ -2820,7 +2822,7 @@ async function refreshSelectedProjectOverview() {
 }
 
 async function refreshAll() {
-  const [dashboard, clients, estimates, employees, laborRecords, materials, receipts, overheadExpenses, forecasts, auditLogs] = await Promise.all([
+  const [dashboard, clients, estimates, employees, laborRecords, materials, receipts, overheadExpenses, forecasts, auditLogs, paintProducts, paintEstimates] = await Promise.all([
     api("/api/dashboard"),
     api("/api/clients"),
     api("/api/estimates"),
@@ -2831,6 +2833,8 @@ async function refreshAll() {
     api("/api/overhead-expenses"),
     api("/api/forecasts"),
     api("/api/audit-logs?limit=12"),
+    api("/api/paint-estimates/products"),
+    api("/api/paint-estimates"),
   ]);
 
   state.dashboard = dashboard;
@@ -2843,6 +2847,8 @@ async function refreshAll() {
   state.overheadExpenses = overheadExpenses;
   state.forecasts = forecasts;
   state.auditLogs = auditLogs;
+  state.paintProducts = paintProducts;
+  state.paintEstimates = paintEstimates;
 
   await Promise.all([refreshProjects(), refreshWeeklyPayments()]);
   await Promise.all([refreshAssignments(), refreshSelectedProjectOverview()]);
@@ -2866,6 +2872,9 @@ async function refreshAll() {
   renderProjectsTable();
   renderSelects();
   updateExportLinks();
+  renderPaintProductsTable();
+  renderPaintEstimatesList();
+  populatePaintSelects();
 }
 
 function formDataToJson(form) {
@@ -3395,12 +3404,302 @@ function setupSettings() {
   });
 }
 
+/* ══════════════════════════════════════════
+   PAINT ESTIMATE CALCULATOR
+═══════════════════════════════════════════ */
+const PAINT_COVERAGE = { smooth: 400, medium: 350, textured: 300 };
+
+function calcPaint() {
+  const sqft = Number(document.querySelector("#pc-sqft")?.value || 0);
+  const coats = Number(document.querySelector("#pc-coats")?.value || 2);
+  const surface = document.querySelector("#pc-surface")?.value || "medium";
+  const pricePerGallon = Number(document.querySelector("#pc-price")?.value || 0);
+  const discountPct = Number(document.querySelector("#pc-discount")?.value || 0);
+  const taxAmount = Number(document.querySelector("#pc-tax")?.value || 0);
+  const marginAmount = Number(document.querySelector("#pc-margin")?.value || 0);
+
+  const productId = document.querySelector("#pc-product-id")?.value;
+  const product = productId ? state.paintProducts.find((p) => String(p.id) === productId) : null;
+  const coverageUsed = product ? product.coverage_sqft : PAINT_COVERAGE[surface] || 350;
+
+  const adjustedArea = sqft * coats;
+  const gallonsNeeded = adjustedArea / coverageUsed;
+  const gallonsFinal = Math.ceil(gallonsNeeded);
+  const subtotal = gallonsFinal * pricePerGallon;
+  const discountAmount = subtotal * (discountPct / 100);
+  const total = subtotal - discountAmount + taxAmount + marginAmount;
+
+  const set = (id, val) => { const el = document.querySelector(id); if (el) el.textContent = val; };
+  set("#pr-coverage", `${coverageUsed} sqft/gal`);
+  set("#pr-adjusted", `${adjustedArea.toFixed(0)} sqft`);
+  set("#pr-gallons-exact", `${gallonsNeeded.toFixed(2)} gal`);
+  set("#pr-gallons-final", `${gallonsFinal} gal`);
+  set("#pr-subtotal", formatCurrency(subtotal));
+  set("#pr-discount-amt", formatCurrency(discountAmount));
+  set("#pr-tax-amt", formatCurrency(taxAmount));
+  set("#pr-margin-amt", formatCurrency(marginAmount));
+  set("#pr-total", formatCurrency(total));
+
+  return { coverageUsed, adjustedArea, gallonsNeeded, gallonsFinal, subtotal, discountAmount, total };
+}
+
+function populatePaintSelects() {
+  const productSel = document.querySelector("#pc-product-id");
+  if (!productSel) return;
+  const currentVal = productSel.value;
+  productSel.innerHTML = '<option value="">Custom / No product</option>' +
+    state.paintProducts.map((p) => `<option value="${p.id}">${p.name} — ${p.finish || "—"} ($${Number(p.price_per_gallon).toFixed(2)}/gal)</option>`).join("");
+  if (currentVal) productSel.value = currentVal;
+
+  const estimateSel = document.querySelector("#pc-estimate-id");
+  if (!estimateSel) return;
+  const curEst = estimateSel.value;
+  estimateSel.innerHTML = '<option value="">None</option>' +
+    state.estimates.map((e) => `<option value="${e.id}">${e.estimateNumber} — ${e.workTitle}</option>`).join("");
+  if (curEst) estimateSel.value = curEst;
+}
+
+function renderPaintEstimatesList() {
+  const container = document.querySelector("#paint-estimates-list");
+  if (!container) return;
+  if (!state.paintEstimates.length) {
+    container.innerHTML = '<div class="empty-state">No paint estimates saved yet.</div>';
+    return;
+  }
+  container.innerHTML = state.paintEstimates.map((pe) => `
+    <div class="list-item" style="cursor:pointer;" data-pe-id="${pe.id}">
+      <div class="list-item-main">
+        <strong>${pe.project_name}</strong>
+        <span class="status-badge">${pe.gallons_final} gal · ${pe.product_name || "Custom"}</span>
+      </div>
+      <div class="list-item-meta">
+        ${pe.estimateNumber ? `<span>Linked: ${pe.estimateNumber}</span>` : ""}
+        <span>${pe.total_sqft} sqft · ${pe.num_coats} coats</span>
+        <span style="font-weight:600;color:var(--primary);">${formatCurrency(pe.total)}</span>
+      </div>
+      <div class="list-item-actions">
+        <button class="button-secondary narrow-button" data-pe-edit="${pe.id}">Edit</button>
+        <button class="button-danger narrow-button" data-pe-delete="${pe.id}">Delete</button>
+      </div>
+    </div>
+  `).join("");
+
+  container.querySelectorAll("[data-pe-edit]").forEach((btn) => {
+    btn.addEventListener("click", () => loadPaintEstimateIntoForm(Number(btn.dataset.peEdit)));
+  });
+
+  container.querySelectorAll("[data-pe-delete]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const ok = await showConfirm("Delete paint estimate", "This cannot be undone.");
+      if (!ok) return;
+      await api(`/api/paint-estimates/${btn.dataset.peDelete}`, { method: "DELETE" });
+      showToast("Paint estimate deleted", "success");
+      await refreshAll();
+    });
+  });
+}
+
+function loadPaintEstimateIntoForm(id) {
+  const pe = state.paintEstimates.find((p) => p.id === id);
+  if (!pe) return;
+  document.querySelector("#pc-record-id").value = pe.id;
+  document.querySelector("#pc-project-name").value = pe.project_name;
+  document.querySelector("#pc-sqft").value = pe.total_sqft;
+  document.querySelector("#pc-coats").value = pe.num_coats;
+  document.querySelector("#pc-surface").value = pe.surface_type;
+  document.querySelector("#pc-product-id").value = pe.product_id || "";
+  document.querySelector("#pc-price").value = pe.price_per_gallon;
+  document.querySelector("#pc-discount").value = pe.discount_percent;
+  document.querySelector("#pc-tax").value = pe.tax_amount;
+  document.querySelector("#pc-margin").value = pe.margin_amount;
+  if (pe.estimate_id) document.querySelector("#pc-estimate-id").value = pe.estimate_id;
+  document.querySelector("#paint-calc-edit-status").textContent = `Editing: ${pe.project_name}`;
+  document.querySelector("#pc-save-btn").textContent = "Save changes";
+  calcPaint();
+}
+
+function clearPaintForm() {
+  document.querySelector("#pc-record-id").value = "";
+  document.querySelector("#pc-project-name").value = "";
+  document.querySelector("#pc-sqft").value = "0";
+  document.querySelector("#pc-coats").value = "2";
+  document.querySelector("#pc-surface").value = "medium";
+  document.querySelector("#pc-product-id").value = "";
+  document.querySelector("#pc-price").value = "0";
+  document.querySelector("#pc-discount").value = "0";
+  document.querySelector("#pc-tax").value = "0";
+  document.querySelector("#pc-margin").value = "0";
+  document.querySelector("#pc-estimate-id").value = "";
+  document.querySelector("#paint-calc-edit-status").textContent = "New calculation";
+  document.querySelector("#pc-save-btn").textContent = "Save estimate";
+  calcPaint();
+}
+
+function renderPaintProductsTable() {
+  const container = document.querySelector("#paint-products-table");
+  if (!container) return;
+  if (!state.paintProducts.length) {
+    container.innerHTML = '<div class="empty-state">No products in catalog.</div>';
+    return;
+  }
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th><th>Finish</th><th>Coverage (sqft/gal)</th><th>Price/gal</th><th>Source</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.paintProducts.map((p) => `
+            <tr>
+              <td><strong>${p.name}</strong></td>
+              <td>${p.finish || "—"}</td>
+              <td>${p.coverage_sqft}</td>
+              <td>${formatCurrency(p.price_per_gallon)}</td>
+              <td style="color:var(--muted);font-size:0.8rem;">${p.price_source || "—"}</td>
+              <td style="white-space:nowrap;">
+                <button class="button-secondary narrow-button" data-pp-edit="${p.id}" style="margin-right:4px;">Edit</button>
+                <button class="button-danger narrow-button" data-pp-delete="${p.id}">Del</button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  container.querySelectorAll("[data-pp-edit]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const p = state.paintProducts.find((x) => String(x.id) === btn.dataset.ppEdit);
+      if (!p) return;
+      document.querySelector("#pc-pf-id").value = p.id;
+      document.querySelector("#pc-pf-name").value = p.name;
+      document.querySelector("#pc-pf-finish").value = p.finish || "";
+      document.querySelector("#pc-pf-coverage").value = p.coverage_sqft;
+      document.querySelector("#pc-pf-price").value = p.price_per_gallon;
+      document.querySelector("#pc-pf-source").value = p.price_source || "";
+      document.querySelector("#pc-pf-notes").value = p.notes || "";
+      document.querySelector("#pc-product-form-wrap").style.display = "block";
+    });
+  });
+
+  container.querySelectorAll("[data-pp-delete]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const ok = await showConfirm("Delete product", "Remove this product from the catalog?");
+      if (!ok) return;
+      await api(`/api/paint-estimates/products/${btn.dataset.ppDelete}`, { method: "DELETE" });
+      showToast("Product removed", "success");
+      await refreshAll();
+    });
+  });
+}
+
+function setupPaintCalculator() {
+  const calcInputIds = ["#pc-sqft", "#pc-coats", "#pc-surface", "#pc-price", "#pc-discount", "#pc-tax", "#pc-margin"];
+  calcInputIds.forEach((id) => {
+    document.querySelector(id)?.addEventListener("input", calcPaint);
+    document.querySelector(id)?.addEventListener("change", calcPaint);
+  });
+
+  document.querySelector("#pc-product-id")?.addEventListener("change", () => {
+    const productId = document.querySelector("#pc-product-id").value;
+    const product = productId ? state.paintProducts.find((p) => String(p.id) === productId) : null;
+    if (product) {
+      document.querySelector("#pc-price").value = product.price_per_gallon;
+    }
+    calcPaint();
+  });
+
+  document.querySelector("#pc-save-btn")?.addEventListener("click", async () => {
+    const projectName = document.querySelector("#pc-project-name").value.trim();
+    if (!projectName) { showToast("Enter a project name.", "info"); return; }
+    const sqft = Number(document.querySelector("#pc-sqft").value || 0);
+    if (!sqft) { showToast("Enter the area in sqft.", "info"); return; }
+
+    const results = calcPaint();
+    const productId = document.querySelector("#pc-product-id").value;
+    const product = productId ? state.paintProducts.find((p) => String(p.id) === productId) : null;
+    const recordId = document.querySelector("#pc-record-id").value;
+
+    const payload = {
+      projectName,
+      estimateId: document.querySelector("#pc-estimate-id").value || null,
+      totalSqft: sqft,
+      numCoats: Number(document.querySelector("#pc-coats").value || 2),
+      surfaceType: document.querySelector("#pc-surface").value,
+      productId: productId || null,
+      productName: product?.name || null,
+      finish: product?.finish || null,
+      pricePerGallon: Number(document.querySelector("#pc-price").value || 0),
+      discountPercent: Number(document.querySelector("#pc-discount").value || 0),
+      taxAmount: Number(document.querySelector("#pc-tax").value || 0),
+      marginAmount: Number(document.querySelector("#pc-margin").value || 0),
+      coverageUsed: results.coverageUsed,
+      adjustedArea: results.adjustedArea,
+      gallonsNeeded: results.gallonsNeeded,
+      gallonsFinal: results.gallonsFinal,
+      subtotal: results.subtotal,
+      discountAmount: results.discountAmount,
+      total: results.total,
+    };
+
+    if (recordId) {
+      await api(`/api/paint-estimates/${recordId}`, { method: "DELETE" });
+    }
+    await api("/api/paint-estimates", { method: "POST", body: JSON.stringify(payload) });
+    showToast(recordId ? "Paint estimate updated" : "Paint estimate saved", "success");
+    clearPaintForm();
+    await refreshAll();
+  });
+
+  document.querySelector("#pc-clear-btn")?.addEventListener("click", clearPaintForm);
+
+  document.querySelector("#pc-add-product-btn")?.addEventListener("click", () => {
+    document.querySelector("#pc-pf-id").value = "";
+    document.querySelector("#pc-pf-name").value = "";
+    document.querySelector("#pc-pf-finish").value = "";
+    document.querySelector("#pc-pf-coverage").value = "350";
+    document.querySelector("#pc-pf-price").value = "0";
+    document.querySelector("#pc-pf-source").value = "";
+    document.querySelector("#pc-pf-notes").value = "";
+    document.querySelector("#pc-product-form-wrap").style.display = "block";
+  });
+
+  document.querySelector("#pc-pf-cancel")?.addEventListener("click", () => {
+    document.querySelector("#pc-product-form-wrap").style.display = "none";
+  });
+
+  document.querySelector("#pc-pf-save")?.addEventListener("click", async () => {
+    const name = document.querySelector("#pc-pf-name").value.trim();
+    if (!name) { showToast("Product name is required.", "info"); return; }
+    const id = document.querySelector("#pc-pf-id").value;
+    const payload = {
+      name,
+      finish: document.querySelector("#pc-pf-finish").value || null,
+      coverageSqft: Number(document.querySelector("#pc-pf-coverage").value || 350),
+      pricePerGallon: Number(document.querySelector("#pc-pf-price").value || 0),
+      priceSource: document.querySelector("#pc-pf-source").value || null,
+      notes: document.querySelector("#pc-pf-notes").value || null,
+    };
+    if (id) {
+      await api(`/api/paint-estimates/products/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    } else {
+      await api("/api/paint-estimates/products", { method: "POST", body: JSON.stringify(payload) });
+    }
+    showToast(id ? "Product updated" : "Product added", "success");
+    document.querySelector("#pc-product-form-wrap").style.display = "none";
+    await refreshAll();
+  });
+}
+
 async function bootstrap() {
   setupNavigation();
   setupDefaults();
   setupForms();
   setupSlideOver();
   setupSettings();
+  setupPaintCalculator();
   renderEstimateItemsEditor();
   renderEstimatePreview();
 
